@@ -51,3 +51,9 @@ class ServicioRepository:
     def eliminar_espacio(db: Session, espacio: ServicioHospedaje):
         db.delete(espacio)
         db.commit()
+
+    @staticmethod
+    def obtener_servicios_por_proveedor(db: Session, id_prov: int) -> List[Servicio]:
+        return db.exec(
+            select(Servicio).where(Servicio.id_prov == id_prov, Servicio.activo == True)
+        ).all()

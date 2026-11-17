@@ -1,6 +1,6 @@
 from typing import List # Agrega esto
 from fastapi import APIRouter, Depends
-from sqlmodel import Session
+from sqlmodel import Session, SQLModel
 from app.db.session import get_session
 from app.core.security import get_current_user, require_role
 from app.layers.models.auth import User
@@ -50,3 +50,19 @@ def borrar_alojamiento(id_servicio: int, db: Session = Depends(get_session), usu
 @router.delete("/hospedajes/espacios/{id_hosp}", dependencies=[Depends(require_role(3))])
 def borrar_habitacion(id_hosp: int, db: Session = Depends(get_session), usuario: User = Depends(get_current_user)):
     return ServicioService.eliminar_espacio(db, id_hosp, usuario)
+
+class DisponibilidadUpdate(SQLModel):
+    disponibilidad: bool
+
+@router.get("/mis-servicios", response_model=List[Any], dependencies=[Depends(require_role(3))])
+def listar_mis_servicios(db: Session = Depends(get_session), usuario: User = Depends(get_current_user)):
+    return ServicioService.listar_mis_servicios(db, usuario)
+
+@router.patch("/{id_servicio}/disponibilidad", dependencies=[Depends(require_role(3))])
+def cambiar_disponibilidad(
+    id_servicio: int,
+    data: DisponibilidadUpdate,
+    db: Session = Depends(get_session),
+    usuario: User = Depends(get_current_user)
+):
+    return ServicioService.cambiar_disponibilidad(db, id_servicio, data.disponibilidad, usuario)

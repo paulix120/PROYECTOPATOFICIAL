@@ -74,6 +74,8 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
             if (userRole === 2) {
                 // Si llegas a crear una carpeta menu_admin, la ruta sería esta:
                 window.location.href = "menu_admin/menu_admin.html";
+            } else if (userRole === 3) {
+                window.location.href = "menu_proveedor/menu_proveedor.html";
             } else {
                 // Esta es la ruta correcta para ir al menú que me pasaste
                 window.location.href = "menu_usuario/menu_usuario.html"; 

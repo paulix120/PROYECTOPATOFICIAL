@@ -18,6 +18,9 @@ class Resena(SQLModel, table=True):
     comentario: Optional[str] = Field(default=None, max_length=1000)
     fecha_resena: Optional[datetime] = Field(default_factory=datetime.utcnow)
     estado: str = Field(default=EstadoResena.ACTIVA.value)
+    # --- AÑADIDO PARA RESPUESTA DEL PROVEEDOR ---
+    respuesta_proveedor: Optional[str] = Field(default=None, max_length=1000)
+    fecha_respuesta: Optional[datetime] = None
 
 class ResenaCreate(SQLModel):
     id_usu: int
@@ -30,6 +33,9 @@ class ResenaUpdate(SQLModel):
     comentario: Optional[str] = None
     estado: Optional[str] = None
 
+class ResenaResponder(SQLModel):
+    respuesta_proveedor: str
+
 class ResenaResponse(SQLModel):
     id_resena: int
     id_usu: int
@@ -38,3 +44,5 @@ class ResenaResponse(SQLModel):
     comentario: Optional[str] = None
     fecha_resena: Optional[datetime] = None
     estado: str
+    respuesta_proveedor: Optional[str] = None
+    fecha_respuesta: Optional[datetime] = None

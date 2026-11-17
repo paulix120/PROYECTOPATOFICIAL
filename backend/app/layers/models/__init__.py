@@ -48,3 +48,5 @@ from .servicio_gastronomia import (
 from .servicio_recreacion import ServicioRecreacion, RecreacionCreate, RecreacionUpdate
 from .servicio_transporte import ServicioTransporte, TransporteCreate, TransporteUpdate
 from .servicio_guia import ServicioGuia, GuiaCreate, GuiaUpdate
+from .resena import Resena, ResenaCreate, ResenaUpdate, ResenaResponse, EstadoResena, ResenaResponder
+from .pago_proveedor import Pago, PagoProveedor

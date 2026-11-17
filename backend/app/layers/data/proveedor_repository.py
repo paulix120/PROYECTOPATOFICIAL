@@ -23,3 +23,7 @@ class ProveedorRepository:
     @staticmethod
     def obtener_por_id(db: Session, id_prov: int) -> Optional[Proveedor]:
         return db.get(Proveedor, id_prov)
+
+    @staticmethod
+    def obtener_por_usuario(db: Session, id_usu: int) -> Optional[Proveedor]:
+        return db.exec(select(Proveedor).where(Proveedor.id_usu == id_usu)).first()

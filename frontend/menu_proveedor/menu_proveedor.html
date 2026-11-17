@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel del Proveedor - PAT</title>
+  <link rel="stylesheet" href="../css/styles_menu_proveedor.css" />
+  <link rel="icon" type="image/png" href="../img/Designer_icon.png" />
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-logo">P</div>
+        <div class="brand-text">
+          <strong>PAT Proveedor</strong>
+          <span id="sidebarRazonSocial">Cargando...</span>
+        </div>
+      </div>
+
+      <p class="sidebar-label">Panel de Control</p>
+      <nav class="nav-list">
+        <button class="nav-item active" data-section="resumen"><span>📊</span> Resumen General</button>
+        <button class="nav-item" data-section="finanzas"><span>💰</span> Finanzas y Pagos</button>
+        <button class="nav-item" data-section="reservas">
+          <span>📅</span> Agenda y Reservas
+          <span class="nav-badge" id="badgeReservasPendientes">0</span>
+        </button>
+        <button class="nav-item" data-section="servicios"><span>🏨</span> Mis Servicios</button>
+        <button class="nav-item" data-section="resenas">
+          <span>⭐</span> Reseñas y Reputación
+          <span class="nav-badge" id="badgeResenasSinResponder">0</span>
+        </button>
+        <button class="nav-item" data-section="perfil"><span>🛡️</span> Perfil y Documentos</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="account-status-card">
+          <small>Estado de cuenta</small>
+          <div class="status-line">
+            <span class="dot-online"></span>
+            <strong id="estadoProveedorSidebar">Verificando...</strong>
+          </div>
+          <span class="nit-text" id="nitSidebar">NIT: --</span>
+        </div>
+        <button class="btn-outline btn-full" onclick="cerrarSesion()">Cerrar Sesión</button>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="btn-icon mobile-only" id="btnToggleMenu">☰</button>
+          <div>
+            <h1 id="pageTitle">Resumen General</h1>
+            <p id="pageSubtitle">Monitorea tus ingresos, reservas activas y oferta turística.</p>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <div class="notification-wrapper">
+            <button class="btn-icon" id="btnNotificaciones" title="Notificaciones">
+              🔔 <span class="notif-dot" id="notifCount">0</span>
+            </button>
+            <div class="notification-dropdown hidden" id="notifDropdown">
+              <div class="notif-header">
+                <strong>Notificaciones</strong>
+              </div>
+              <div class="notif-list" id="notifList"></div>
+            </div>
+          </div>
+
+          <div class="user-pill">
+            <div class="avatar" id="avatarIniciales">PR</div>
+            <div class="user-meta">
+              <strong id="headerNombreUsuario">Proveedor</strong>
+              <span>Rol: Proveedor</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="content-area">
+        <!-- 1. RESUMEN -->
+        <section id="sec-resumen" class="view-section active">
+          <div class="kpi-grid">
+            <article class="kpi-card">
+              <div class="kpi-top">
+                <span class="kpi-label">Ingresos Netos</span>
+                <span class="kpi-icon kpi-green">💵</span>
+              </div>
+              <strong class="kpi-value" id="kpiIngresos">$0 COP</strong>
+              <span class="kpi-sub" id="kpiPendiente">Por liquidar: $0 COP</span>
+            </article>
+
+            <article class="kpi-card">
+              <div class="kpi-top">
+                <span class="kpi-label">Reservas Activas</span>
+                <span class="kpi-icon kpi-blue">📅</span>
+              </div>
+              <strong class="kpi-value" id="kpiReservasActivas">0</strong>
+              <span class="kpi-sub" id="kpiReservasFinalizadas">0 finalizadas</span>
+            </article>
+
+            <article class="kpi-card">
+              <div class="kpi-top">
+                <span class="kpi-label">Reputación Promedio</span>
+                <span class="kpi-icon kpi-amber">⭐</span>
+              </div>
+              <strong class="kpi-value" id="kpiCalificacion">0.0 / 5.0</strong>
+              <span class="kpi-sub" id="kpiTotalResenas">Basado en 0 reseñas</span>
+            </article>
+
+            <article class="kpi-card">
+              <div class="kpi-top">
+                <span class="kpi-label">Servicios Publicados</span>
+                <span class="kpi-icon kpi-purple">🏨</span>
+              </div>
+              <strong class="kpi-value" id="kpiTotalServicios">0</strong>
+              <span class="kpi-sub" id="kpiServiciosDisponibles">0 disponibles ahora</span>
+            </article>
+          </div>
+
+          <div class="grid-two-cols">
+            <article class="panel-card">
+              <div class="panel-header">
+                <div>
+                  <h2>Próximas Reservas</h2>
+                  <p>Servicios agendados por viajeros</p>
+                </div>
+                <button class="btn-link" onclick="navegarA('reservas')">Ver agenda completa →</button>
+              </div>
+              <div id="resumenProximasReservas" class="stack-list"></div>
+            </article>
+
+            <article class="panel-card">
+              <div class="panel-header">
+                <div>
+                  <h2>Últimas Liquidaciones</h2>
+                  <p>Sub-transacciones en tabla pago_proveedor</p>
+                </div>
+                <button class="btn-link" onclick="navegarA('finanzas')">Ir a finanzas →</button>
+              </div>
+              <div id="resumenUltimosPagos" class="stack-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <!-- 2. FINANZAS -->
+        <section id="sec-finanzas" class="view-section">
+          <div class="section-toolbar">
+            <div>
+              <h2>Módulo Financiero y Liquidaciones</h2>
+              <p>Desglose de ventas por plan de viaje, comisión retenida y monto neto a transferir.</p>
+            </div>
+            <div class="toolbar-buttons">
+              <button class="btn-outline" onclick="exportarPagosCSV()">📥 Exportar CSV</button>
+              <button class="btn-primary" onclick="window.print()">🖨️ Imprimir / PDF</button>
+            </div>
+          </div>
+
+          <div class="finance-summary-row">
+            <div class="summary-pill"><span>Total Transferido</span><strong class="text-green" id="finTransferido">$0 COP</strong></div>
+            <div class="summary-pill"><span>Pendiente de Transferencia</span><strong class="text-amber" id="finPendiente">$0 COP</strong></div>
+            <div class="summary-pill"><span>Comisiones Plataforma</span><strong id="finComisiones">$0 COP</strong></div>
+          </div>
+
+          <div class="panel-card">
+            <div class="panel-header">
+              <h3>Desglose de Ventas (pago_proveedor)</h3>
+              <select id="filtroEstadoPago" class="input-select-sm" onchange="renderizarFinanzas()">
+                <option value="TODOS">Todos los estados</option>
+                <option value="PENDIENTE">Pendientes</option>
+                <option value="TRANSFERIDO">Transferidos</option>
+                <option value="RETENIDO">Retenidos</option>
+              </select>
+            </div>
+
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>ID / Referencia</th>
+                    <th>Plan de Viaje</th>
+                    <th>Subtotal</th>
+                    <th>Comisión</th>
+                    <th>Neto Proveedor</th>
+                    <th>Estado</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaPagosBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. RESERVAS -->
+        <section id="sec-reservas" class="view-section">
+          <div class="section-toolbar">
+            <div>
+              <h2>Calendario Operativo y Gestión de Reservas</h2>
+              <p>Consulta la agenda contratada y actualiza el estado del plan.</p>
+            </div>
+            <div class="toolbar-buttons">
+              <input type="date" id="filtroFechaReserva" class="input-control-sm" onchange="renderizarReservas()" />
+              <select id="filtroEstadoReserva" class="input-select-sm" onchange="renderizarReservas()">
+                <option value="TODOS">Todos los estados</option>
+                <option value="RESERVADO">Reservado</option>
+                <option value="FINALIZADO">Finalizado</option>
+                <option value="CANCELADO">Cancelado</option>
+              </select>
+              <button class="btn-outline" onclick="limpiarFiltrosReserva()">Limpiar</button>
+            </div>
+          </div>
+          <div id="listaReservas" class="cards-stack"></div>
+        </section>
+
+        <!-- 4. SERVICIOS -->
+        <section id="sec-servicios" class="view-section">
+          <div class="section-toolbar">
+            <div>
+              <h2>Catálogo y Control de Servicios</h2>
+              <p>Gestiona tus servicios reales en MySQL, precios, sub-ítems, galería y disponibilidad.</p>
+            </div>
+            <div class="toolbar-buttons">
+              <select id="filtroCategoriaServicio" class="input-select-sm" onchange="renderizarServicios()">
+                <option value="TODOS">Todas las categorías</option>
+                <option value="1">Hospedaje</option>
+                <option value="2">Gastronomía</option>
+                <option value="3">Recreación</option>
+                <option value="4">Transporte</option>
+                <option value="5">Guía Turístico</option>
+              </select>
+              <button class="btn-primary" onclick="abrirModalServicio()">+ Nuevo Servicio</button>
+            </div>
+          </div>
+          <div id="gridServicios" class="services-grid"></div>
+        </section>
+
+        <!-- 5. RESEÑAS -->
+        <section id="sec-resenas" class="view-section">
+          <div class="section-toolbar">
+            <div>
+              <h2>Panel de Reseñas y Comentarios</h2>
+              <p>Calificaciones registradas por los turistas y respuestas oficiales.</p>
+            </div>
+          </div>
+          <div id="listaResenas" class="cards-stack"></div>
+        </section>
+
+        <!-- 6. PERFIL Y DOCUMENTOS -->
+        <section id="sec-perfil" class="view-section">
+          <div class="section-toolbar">
+            <div>
+              <h2>Perfil Comercial y Verificación</h2>
+              <p>Información de tu solicitud aprobada, cuenta bancaria y documentos legales.</p>
+            </div>
+          </div>
+
+          <div class="grid-two-cols">
+            <article class="panel-card">
+              <h3>Datos del Proveedor y Cuenta Bancaria</h3>
+              <div class="profile-data-list" id="perfilDatosEmpresa"></div>
+            </article>
+
+            <article class="panel-card">
+              <h3>Documentación Legal (RUT / RNT / Cámara)</h3>
+              <div id="listaDocumentos" class="stack-list" style="margin-bottom: 16px;"></div>
+
+              <form id="formSubirDocumento" class="modal-form" style="border-top: 1px solid var(--border); padding-top: 14px;">
+                <h4 style="font-size: 14px;">Subir nuevo documento</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="docTipo">Tipo de documento</label>
+                    <select id="docTipo" required>
+                      <option value="RUT">RUT</option>
+                      <option value="RNT">Registro Nacional de Turismo (RNT)</option>
+                      <option value="CAMARA_COMERCIO">Cámara de Comercio</option>
+                      <option value="CERTIFICACION_BANCARIA">Certificación Bancaria</option>
+                      <option value="CEDULA">Cédula Representante</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="docArchivo">Archivo (PDF o Imagen)</label>
+                    <input type="file" id="docArchivo" accept=".pdf,.png,.jpg,.jpeg" required />
+                  </div>
+                </div>
+                <button type="submit" class="btn-primary">Subir Documento</button>
+              </form>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- MODAL PAGO -->
+  <div class="modal-backdrop hidden" id="modalPago">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Detalle de Liquidación</h3>
+        <button class="btn-close" onclick="cerrarModal('modalPago')">✕</button>
+      </div>
+      <div class="modal-body" id="modalPagoContenido"></div>
+      <div class="modal-footer">
+        <button class="btn-outline" onclick="cerrarModal('modalPago')">Cerrar</button>
+        <button class="btn-primary" onclick="window.print()">Imprimir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL SERVICIO (CREAR / EDITAR + SUB-ÍTEMS + IMÁGENES) -->
+  <div class="modal-backdrop hidden" id="modalServicio">
+    <div class="modal-box" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3 id="modalServicioTitulo">Nuevo Servicio</h3>
+        <button class="btn-close" onclick="cerrarModal('modalServicio')">✕</button>
+      </div>
+      <form id="formServicio" class="modal-form">
+        <input type="hidden" id="srvId" />
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="srvCategoria">Categoría (Tipo de Servicio)</label>
+            <select id="srvCategoria" required onchange="actualizarCamposCategoria()"></select>
+          </div>
+          <div class="form-group">
+            <label for="srvTurismo">Tipo de Turismo</label>
+            <select id="srvTurismo" required></select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="srvGama">Gama</label>
+            <select id="srvGama" required></select>
+          </div>
+          <div class="form-group">
+            <label for="srvUbicacion">Ubicación</label>
+            <select id="srvUbicacion" required></select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="srvNombre">Nombre del Servicio / Establecimiento</label>
+          <input type="text" id="srvNombre" required />
+        </div>
+
+        <div class="form-group">
+          <label for="srvDescripcion">Descripción</label>
+          <textarea id="srvDescripcion" rows="2" required></textarea>
+        </div>
+
+        <!-- Campos específicos cuando es categoría única (Recreación, Transporte, Guía) -->
+        <div id="camposCategoriaUnica" class="subitems-box"></div>
+
+        <!-- Sub-ítems cuando ya existe el servicio base de Hospedaje (habitaciones) o Gastronomía (platos) -->
+        <div id="bloqueSubitems" class="subitems-box hidden">
+          <strong id="tituloSubitems">Habitaciones / Platos</strong>
+          <div id="listaSubitemsModal"></div>
+
+          <div style="margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 10px;">
+            <strong style="font-size: 12px;" id="tituloAgregarSubitem">+ Agregar</strong>
+            <div class="form-row" style="margin-top: 6px;">
+              <input type="text" id="subNombre" placeholder="Nombre unidad o platillo" />
+              <input type="number" id="subPrecio" min="0" placeholder="Precio COP" />
+            </div>
+            <div class="form-row" style="margin-top: 6px;">
+              <input type="number" id="subCapacidad" min="1" value="2" placeholder="Capacidad / Porciones" />
+              <input type="text" id="subHorario" placeholder="Horario / Check-in - Check-out" />
+            </div>
+            <button type="button" class="btn-outline btn-sm" style="margin-top: 6px;" onclick="agregarSubitemAPI()">+ Guardar Ítem</button>
+          </div>
+        </div>
+
+        <!-- Galería de imágenes -->
+        <div class="subitems-box">
+          <strong>Imágenes del Servicio</strong>
+          <div class="gallery-grid" id="galeriaModal"></div>
+          <div style="margin-top: 8px; display: flex; gap: 8px; align-items: center;">
+            <input type="file" id="srvImagenFile" accept=".jpg,.jpeg,.png,.webp" />
+            <label style="font-size: 12px; display:flex; align-items:center; gap:4px;">
+              <input type="checkbox" id="srvImagenPrincipal" checked /> Principal
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-outline" onclick="cerrarModal('modalServicio')">Cancelar</button>
+          <button type="submit" class="btn-primary">Guardar Servicio</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL RESEÑA -->
+  <div class="modal-backdrop hidden" id="modalResena">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Responder al Cliente</h3>
+        <button class="btn-close" onclick="cerrarModal('modalResena')">✕</button>
+      </div>
+      <form id="formRespuestaResena" class="modal-form">
+        <input type="hidden" id="resenaIdResponder" />
+        <p class="modal-quote" id="resenaTextoOriginal"></p>
+        <div class="form-group">
+          <label for="textoRespuesta">Tu respuesta pública</label>
+          <textarea id="textoRespuesta" rows="4" required placeholder="Agradece el comentario o aclara cualquier inquietud..."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-outline" onclick="cerrarModal('modalResena')">Cancelar</button>
+          <button type="submit" class="btn-primary">Publicar Respuesta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../js/menu_proveedor/menu_proveedor.js"></script>
+</body>
+</html>

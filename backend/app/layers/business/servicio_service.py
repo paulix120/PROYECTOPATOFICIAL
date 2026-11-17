@@ -162,3 +162,80 @@ class ServicioService:
             
         ServicioRepository.eliminar_espacio(db, espacio) # Borrado físico de la tabla hija
         return {"mensaje": "Habitación eliminada de tu hotel."}
+
+    @staticmethod
+    def listar_mis_servicios(db: Session, usuario: User):
+        from app.layers.models.servicio_imagen import ServicioImagen
+        from app.layers.models.ubicacion import Ubicacion
+        from app.layers.models.ciudad import Ciudad
+        from app.layers.models.tp_turismo import TpTurismo
+        from app.layers.models.tp_servicio import TpServicio
+        from app.layers.models.gama import Gama
+        from app.layers.models.servicio_gastronomia import ServicioGastronomia
+        from app.layers.models.servicio_recreacion import ServicioRecreacion
+        from app.layers.models.servicio_transporte import ServicioTransporte
+        from app.layers.models.servicio_guia import ServicioGuia
+
+        proveedor = db.exec(select(Proveedor).where(Proveedor.id_usu == usuario.id_usu)).first()
+        if not proveedor:
+            raise HTTPException(status_code=403, detail="No eres un proveedor registrado.")
+
+        servicios = ServicioRepository.obtener_servicios_por_proveedor(db, proveedor.id_prov)
+        resultado = []
+
+        for s in servicios:
+            imagenes = db.exec(select(ServicioImagen).where(ServicioImagen.id_servicio == s.id_servicio)).all()
+            img_principal = next((i.ruta_url for i in imagenes if i.es_principal), None)
+            if not img_principal and imagenes:
+                img_principal = imagenes[0].ruta_url
+
+            ubi = db.get(Ubicacion, s.id_ubi)
+            ciudad = db.get(Ciudad, ubi.id_cdad) if ubi else None
+            gama = db.get(Gama, s.id_gama)
+            turismo = db.get(TpTurismo, s.id_tp_turi)
+            tp_serv = db.get(TpServicio, s.id_tp_serv)
+
+            sub_items = []
+            detalle_unico = None
+
+            if s.id_tp_serv == 1:  # Hospedaje
+                sub_items = [x.model_dump() for x in db.exec(select(ServicioHospedaje).where(ServicioHospedaje.id_servicio == s.id_servicio)).all()]
+            elif s.id_tp_serv == 2:  # Gastronomia
+                sub_items = [x.model_dump() for x in db.exec(select(ServicioGastronomia).where(ServicioGastronomia.id_servicio == s.id_servicio)).all()]
+            elif s.id_tp_serv == 3:  # Recreacion
+                obj = db.exec(select(ServicioRecreacion).where(ServicioRecreacion.id_servicio == s.id_servicio)).first()
+                detalle_unico = obj.model_dump() if obj else None
+            elif s.id_tp_serv == 4:  # Transporte
+                obj = db.exec(select(ServicioTransporte).where(ServicioTransporte.id_servicio == s.id_servicio)).first()
+                detalle_unico = obj.model_dump() if obj else None
+            elif s.id_tp_serv == 5:  # Guia
+                obj = db.exec(select(ServicioGuia).where(ServicioGuia.id_servicio == s.id_servicio)).first()
+                detalle_unico = obj.model_dump() if obj else None
+
+            s_dict = s.model_dump()
+            s_dict["tipo_servicio_nombre"] = tp_serv.nombre if tp_serv else "Servicio"
+            s_dict["gama_nombre"] = gama.nombre if gama else "Estándar"
+            s_dict["turismo_nombre"] = turismo.nombre if turismo else "General"
+            s_dict["ciudad_nombre"] = ciudad.nombre if ciudad else (ubi.barrio if ubi else "Colombia")
+            s_dict["ubicacion"] = ubi.model_dump() if ubi else None
+            s_dict["imagen_principal"] = img_principal
+            s_dict["imagenes"] = [img.model_dump() for img in imagenes]
+            s_dict["sub_items"] = sub_items
+            s_dict["detalle"] = detalle_unico
+            resultado.append(s_dict)
+
+        return resultado
+
+    @staticmethod
+    def cambiar_disponibilidad(db: Session, id_servicio: int, disponibilidad: bool, usuario: User):
+        proveedor = db.exec(select(Proveedor).where(Proveedor.id_usu == usuario.id_usu)).first()
+        if not proveedor:
+            raise HTTPException(status_code=403, detail="No eres un proveedor registrado.")
+
+        servicio = ServicioRepository.obtener_servicio_por_id(db, id_servicio)
+        if not servicio or servicio.id_prov != proveedor.id_prov:
+            raise HTTPException(status_code=404, detail="Servicio no encontrado o no te pertenece.")
+
+        servicio.disponibilidad = disponibilidad
+        ServicioRepository.actualizar(db, servicio)
+        return {"mensaje": "Disponibilidad actualizada.", "disponibilidad": servicio.disponibilidad}
