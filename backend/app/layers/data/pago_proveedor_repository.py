@@ -14,4 +14,8 @@ class PagoProveedorRepository:
             .where(PagoProveedor.id_prov == id_prov)
             .order_by(PagoProveedor.id_pago_prov.desc())
         )
+<<<<<<< HEAD
         return db.exec(statement).all()
+=======
+        return db.exec(statement).all()
+>>>>>>> origin/parteMiguel

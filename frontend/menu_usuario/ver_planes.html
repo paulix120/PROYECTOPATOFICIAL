@@ -76,20 +76,22 @@
         </div>
     </div>
 
-    <!-- MODAL: ORÍGEN Y DESTINO -->
+        <!-- MODAL: ORÍGEN Y DESTINO -->
     <div id="modalOrigenDestino" class="modal-overlay">
         <div class="modal-caja">
             <h3 style="margin-top: 0;">📍 Origen y Destino</h3>
-            <p style="font-size: 13px; color: #666;">Define las ciudades para calcular la ruta en el mapa.</p>
+            <p style="font-size: 13px; color: #666;">Escribe la dirección o un lugar de referencia para calcular la ruta en el mapa.</p>
             
             <label><b>Origen Principal:</b></label>
-            <select id="selOrigenPlan" required></select>
+            <input type="text" id="txtOrigenPlan" placeholder="Ej: Calle 26 # 69-76, Bogotá">
             
             <label><b>Destino Principal:</b></label>
-            <select id="selDestinoPlan" required></select>
+            <input type="text" id="txtDestinoPlan" placeholder="Ej: Parque Tayrona, Santa Marta">
+
+            <div id="infoOrigenDestino" style="font-size: 12px; color: #475569; margin-bottom: 12px;"></div>
             
             <div style="display: flex; justify-content: space-between;">
-                <button type="button" class="btn-guardar" onclick="guardarOrigenDestino()">Guardar Ruta</button>
+                <button type="button" id="btnGuardarRuta" class="btn-guardar" onclick="guardarOrigenDestino()">Guardar Ruta</button>
                 <button type="button" class="btn-cancelar" onclick="document.getElementById('modalOrigenDestino').style.display='none'">Cancelar</button>
             </div>
         </div>

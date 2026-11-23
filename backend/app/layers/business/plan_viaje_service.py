@@ -15,14 +15,17 @@ from app.layers.models.ubicacion import Ubicacion
 from app.layers.models.servicio import ServicioHospedaje
 from app.layers.models.servicio_gastronomia import ServicioGastronomia
 from app.layers.models.servicio_transporte import ServicioTransporte
+from datetime import date
 from app.layers.models.servicio_recreacion import ServicioRecreacion
 from app.layers.models.servicio_guia import ServicioGuia
 from app.core.travel import calcular_distancia_km, calcular_tiempo
-
+from app.layers.models.servicio_guia import ServicioGuia
 
 class PlanViajeService:
     @staticmethod
     def crear_plan(db: Session, data: PlanViajeCreate, usuario: User):
+        if data.fecha_inicio < date.today():
+            raise HTTPException(400, "La fecha de inicio no puede ser una fecha que ya pasó. Elige una fecha de hoy en adelante.")
         if data.fecha_inicio > data.fecha_fin:
             raise HTTPException(400, "La fecha de inicio no puede ser posterior a la fecha de fin.")
         nuevo_plan = PlanViaje(
@@ -45,12 +48,12 @@ class PlanViajeService:
         es_transporte = data.tipo_item in ("TRANSPORTE", "TRANSPORTE_PROPIO")
 
         if es_transporte:
-            tiene_transporte = PlanViajeRepository.usuario_ya_tiene_transporte(db, usuario.id_usu)
+            tiene_transporte = PlanViajeRepository.plan_ya_tiene_transporte(db, id_plan)
             if tiene_transporte:
                 raise HTTPException(
                     400,
-                    "Ya tienes un transporte registrado en tus planes de viaje. "
-                    "Solo puedes tener un transporte activo. Elimínalo si deseas agregar otro.",
+                    "Este plan de viaje ya tiene un transporte registrado. "
+                    "Solo puedes tener un transporte por plan. Elimínalo si deseas agregar otro."
                 )
 
         costo_unitario = Decimal("0.00")
@@ -101,38 +104,29 @@ class PlanViajeService:
             if ruta.id_origen and ruta.id_destino:
                 origen = db.get(Ubicacion, ruta.id_origen)
                 destino = db.get(Ubicacion, ruta.id_destino)
-                if origen and destino:
-                    distancia = calcular_distancia_km(
-                        origen.latitud, origen.longitud, destino.latitud, destino.longitud
-                    )
-                    tipo_vehiculo = ruta.tipo_vehiculo.lower()
-                    velocidad = (
-                        800
-                        if "avi" in tipo_vehiculo
-                        or "vuelo" in tipo_vehiculo
-                        or "airbus" in tipo_vehiculo
-                        else 60
-                    )
-                    th = calcular_tiempo(distancia, velocidad_promedio=velocidad)
-                    tiempo_minutos = int(th * 60) if th else 0
-                    id_ori_final = ruta.id_origen
-                    id_des_final = ruta.id_destino
+                distancia = calcular_distancia_km(origen.latitud, origen.longitud, destino.latitud, destino.longitud)
+                tipo_vehiculo = ruta.tipo_vehiculo.lower()
+                velocidad = 800 if "avi" in tipo_vehiculo or "vuelo" in tipo_vehiculo or "airbus" in tipo_vehiculo else 60
+                
+                th = calcular_tiempo(distancia, velocidad_promedio=velocidad)
+                tiempo_minutos = int(th * 60) if th else 0
 
-        elif data.tipo_item in ("DESTINO_TURISTICO", "RECREACION"):
+                id_ori_final = ruta.id_origen
+                id_des_final = ruta.id_destino
+            
+        elif data.tipo_item in ['DESTINO_TURISTICO', 'RECREACION']:
             rec = db.get(ServicioRecreacion, data.id_item_especifico)
-            if not rec:
-                raise HTTPException(404, "Actividad de recreación no encontrada.")
+            if not rec: raise HTTPException(404, "Actividad no encontrada.")
             costo_unitario = Decimal(str(rec.vlr_persona))
             tiempo_minutos = 180
 
-        elif data.tipo_item == "GUIA":
+        elif data.tipo_item == 'GUIA':
             guia = db.get(ServicioGuia, data.id_item_especifico)
-            if not guia:
-                raise HTTPException(404, "Tour de guía no encontrado.")
+            if not guia: raise HTTPException(404, "Tour no encontrado.")
             costo_unitario = Decimal(str(guia.vlr_tour))
             tiempo_minutos = int(guia.duracion_horas * 60) if guia.duracion_horas else 180
-
-        subtotal = (costo_unitario * Decimal(str(data.cantidad))).quantize(Decimal("0.01"))
+            
+        subtotal = costo_unitario * Decimal(str(data.cantidad))
 
         nuevo_detalle = DetPlanViaje(
             id_plan_viaje=id_plan,
@@ -260,19 +254,6 @@ class PlanViajeService:
         detalle.subtotal_calculado = nuevo_subtotal
         plan.costo_total_estimado = total_sin_item + nuevo_subtotal
 
-        # Operación compuesta atómica: actualizar ítem + actualizar total
-        PlanViajeRepository.actualizar_detalle(db, detalle, commit=False)
-        PlanViajeRepository.actualizar_plan(db, plan, commit=False)
-
-        try:
-            db.commit()
-            db.refresh(plan)
-        except Exception:
-            db.rollback()
-            raise HTTPException(500, "Error al actualizar el ítem del plan de viaje.")
-
-        return {
-            "mensaje": "Ítem actualizado.",
-            "nuevo_subtotal": nuevo_subtotal,
-            "NUEVO_TOTAL": plan.costo_total_estimado,
-        }
+        PlanViajeRepository.actualizar_detalle(db, detalle)
+        PlanViajeRepository.actualizar_plan(db, plan)
+        return {"mensaje": "Ítem actualizado.", "nuevo_subtotal": nuevo_subtotal, "NUEVO_TOTAL": plan.costo_total_estimado}

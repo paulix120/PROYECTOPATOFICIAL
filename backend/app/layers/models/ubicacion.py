@@ -12,7 +12,7 @@ class Ubicacion(SQLModel, table=True):
     latitud: Decimal = Field(max_digits=10, decimal_places=8)
     longitud: Decimal = Field(max_digits=11, decimal_places=8)
     descripcion: Optional[str] = None
-    id_cdad: int
+    id_cdad: Optional[int] = None
     activo: bool = Field(default=True)
 
 class UbicacionCreate(SQLModel):
@@ -35,3 +35,12 @@ class UbicacionUpdate(SQLModel):
 
 class UbicacionResponse(Ubicacion):
     pass
+
+# Agrega esta clase al final del archivo:
+class UbicacionLibreCreate(SQLModel):
+    direccion: str
+    barrio: Optional[str] = None
+    latitud: Decimal
+    longitud: Decimal
+    descripcion: Optional[str] = None
+    id_cdad: Optional[int] = None

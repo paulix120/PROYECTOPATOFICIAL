@@ -12,7 +12,7 @@ from app.layers.routers import (
     solicitud_proveedor, proveedor, documento, servicio,
     ubicacion, trayecto, detalle_resena, politica, condicion, servicio_imagen, servicio_condicion,
     servicio_gastronomia, servicio_recreacion, servicio_transporte, servicio_guia, plan_viaje,
-    reserva_proveedor, pago_proveedor, resena
+    reserva_proveedor, pago_proveedor, resena, pagos, admin_usuario
 )
 
 app = FastAPI(title="PAT API")
@@ -57,6 +57,8 @@ app.include_router(plan_viaje.router)
 app.include_router(reserva_proveedor.router)
 app.include_router(pago_proveedor.router)
 app.include_router(resena.router)
+app.include_router(pagos.router)
+app.include_router(admin_usuario.router)
 
 
 

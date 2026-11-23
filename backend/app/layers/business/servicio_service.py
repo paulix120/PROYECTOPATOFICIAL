@@ -111,7 +111,8 @@ class ServicioService:
         if data.nombre: hotel.nombre = data.nombre
         if data.descripcion: hotel.descripcion = data.descripcion
         if data.id_tp_turi: hotel.id_tp_turi = data.id_tp_turi
-        if data.id_gama: hotel.id_gama = data.id_gama
+        if data.id_gama: hotel.id_gama = data.id_gama   
+        if data.id_ubi: hotel.id_ubi = data.id_ubi
         
         ServicioRepository.actualizar(db, hotel)
         return {"mensaje": "Información del hotel actualizada."}
@@ -190,7 +191,7 @@ class ServicioService:
                 img_principal = imagenes[0].ruta_url
 
             ubi = db.get(Ubicacion, s.id_ubi)
-            ciudad = db.get(Ciudad, ubi.id_cdad) if ubi else None
+            ciudad = db.get(Ciudad, ubi.id_cdad) if ubi and ubi.id_cdad else None
             gama = db.get(Gama, s.id_gama)
             turismo = db.get(TpTurismo, s.id_tp_turi)
             tp_serv = db.get(TpServicio, s.id_tp_serv)

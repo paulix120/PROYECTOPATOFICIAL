@@ -5,51 +5,81 @@ from app.layers.data.resena_repository import ResenaRepository
 from app.layers.data.detalle_resena_repository import DetalleResenaRepository
 from app.layers.models.auth import User
 from app.layers.models.proveedor import Proveedor
-from app.layers.models.resena import Resena, ResenaCreate, ResenaResponder
+from app.layers.models.resena import Resena, ResenaServicioCreate, ResenaResponder
 from app.layers.models.servicio import Servicio
 
 
 class ResenaService:
 
     @staticmethod
-    def _validar_calificacion(clf: float):
-        if clf < 1.0 or clf > 5.0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La calificación general debe estar entre 1.0 y 5.0."
-            )
-
-    @classmethod
-    def crear_resena(cls, db: Session, data: ResenaCreate, usuario_actual: User):
-        cls._validar_calificacion(data.clf_general)
-
-        usuario = db.get(User, data.id_usu or usuario_actual.id_usu)
-        if not usuario:
-            raise HTTPException(status_code=404, detail="El usuario no existe.")
-
-        servicio = db.get(Servicio, data.id_servicio)
+    def _validar_servicio(db: Session, id_servicio: int):
+        servicio = db.get(Servicio, id_servicio)
         if not servicio or not servicio.activo:
-            raise HTTPException(status_code=404, detail="El servicio no existe.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El servicio no existe.")
+        return servicio
+
+    # ---------------- TURISTA ----------------
+
+    @staticmethod
+    def listar_por_servicio(db: Session, id_servicio: int):
+        ResenaService._validar_servicio(db, id_servicio)
+        filas = ResenaRepository.obtener_por_servicio(db, id_servicio)
+
+        resenas = []
+        suma = 0
+        for resena, nombre, apellido in filas:
+            suma += resena.clf_general
+            resenas.append({
+                "id_resena": resena.id_resena,
+                "usuario": f"{nombre} {apellido[:1]}.",
+                "clf_general": resena.clf_general,
+                "comentario": resena.comentario,
+                "fecha_resena": resena.fecha_resena,
+                "respuesta_proveedor": resena.respuesta_proveedor,
+                "fecha_respuesta": resena.fecha_respuesta
+            })
+
+        total = len(resenas)
+        promedio = round(suma / total, 1) if total else 0
+
+        return {"promedio": promedio, "total": total, "resenas": resenas}
+
+    @staticmethod
+    def obtener_mi_resena(db: Session, id_servicio: int, usuario: User):
+        return ResenaRepository.obtener_por_usuario_servicio(db, usuario.id_usu, id_servicio)
+
+    @staticmethod
+    def guardar_resena(db: Session, data: ResenaServicioCreate, usuario: User):
+        ResenaService._validar_servicio(db, data.id_servicio)
+
+        if data.clf_general < 1 or data.clf_general > 5:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La calificación debe estar entre 1 y 5 estrellas.")
+
+        comentario = (data.comentario or "").strip()
+        if len(comentario) > 1000:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El comentario no puede superar los 1000 caracteres.")
+
+        existente = ResenaRepository.obtener_por_usuario_servicio(db, usuario.id_usu, data.id_servicio)
+
+        # Si ya reseñó este servicio, se actualiza (la BD solo permite una por usuario)
+        if existente:
+            existente.clf_general = float(data.clf_general)
+            existente.comentario = comentario or None
+            existente.estado = "ACTIVA"
+            existente.fecha_resena = datetime.utcnow()
+            ResenaRepository.guardar(db, existente)
+            return {"mensaje": "Tu reseña fue actualizada."}
 
         nueva = Resena(
             id_usu=usuario.id_usu,
             id_servicio=data.id_servicio,
-            clf_general=round(float(data.clf_general), 1),
-            comentario=data.comentario.strip() if data.comentario else None,
+            clf_general=float(data.clf_general),
+            comentario=comentario or None
         )
-        return ResenaRepository.crear(db, nueva)
+        ResenaRepository.guardar(db, nueva)
+        return {"mensaje": "¡Gracias por tu reseña!"}
 
-    @staticmethod
-    def listar_por_servicio(db: Session, id_servicio: int):
-        filas = ResenaRepository.obtener_por_servicio(db, id_servicio)
-        resultado = []
-        for resena, autor in filas:
-            detalles = DetalleResenaRepository.obtener_por_resena(db, resena.id_resena)
-            r_dict = resena.model_dump()
-            r_dict["cliente_nombre"] = f"{autor.nombre} {autor.apellido}".strip()
-            r_dict["detalles"] = [d.model_dump() for d in detalles]
-            resultado.append(r_dict)
-        return resultado
+    # ---------------- PROVEEDOR ----------------
 
     @staticmethod
     def listar_para_proveedor(db: Session, usuario: User):

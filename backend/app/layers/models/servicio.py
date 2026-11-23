@@ -54,6 +54,7 @@ class HospedajeBaseUpdate(SQLModel):
     descripcion: Optional[str] = None
     id_tp_turi: Optional[int] = None
     id_gama: Optional[int] = None
+    id_ubi: Optional[int] = None
 
 class HospedajeEspacioUpdate(SQLModel):
     nom_unidad: Optional[str] = None

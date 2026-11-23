@@ -4,61 +4,12 @@ import threading
 import time
 from typing import Optional, Tuple
 from geopy.geocoders import Nominatim
+from typing import Tuple, Optional
+import time
+import re
+import unicodedata
 
-logger = logging.getLogger(__name__)
-
-geolocator = Nominatim(user_agent="pat_turismo_app", timeout=5)
-
-_rate_lock = threading.Lock()
-_ultima_consulta_ts = 0.0
-
-
-def _respetar_rate_limit(intervalo_seg: float = 1.0) -> None:
-    """Respeta el límite de 1 petición/segundo de Nominatim solo si hubo otra petición real reciente."""
-    global _ultima_consulta_ts
-    with _rate_lock:
-        ahora = time.monotonic()
-        transcurrido = ahora - _ultima_consulta_ts
-        if _ultima_consulta_ts > 0 and transcurrido < intervalo_seg:
-            time.sleep(intervalo_seg - transcurrido)
-        _ultima_consulta_ts = time.monotonic()
-
-
-def _construir_consultas(nombre: str, direccion: Optional[str], ciudad: str) -> list[str]:
-    partes_base = []
-    nom = (nombre or "").strip()
-    dir_ = (direccion or "").strip()
-    ciu = (ciudad or "").strip()
-
-    if nom and dir_ and ciu:
-        partes_base.append(f"{nom}, {dir_}, {ciu}, Colombia")
-    if dir_ and ciu:
-        partes_base.append(f"{dir_}, {ciu}, Colombia")
-    if nom and ciu:
-        partes_base.append(f"{nom}, {ciu}, Colombia")
-    if dir_:
-        partes_base.append(f"{dir_}, Colombia")
-    if nom:
-        partes_base.append(f"{nom}, Colombia")
-
-    # Eliminar duplicados preservando el orden de prioridad
-    return list(dict.fromkeys(partes_base))
-
-
-@lru_cache(maxsize=512)
-def _buscar_en_cache(nombre_norm: str, direccion_norm: str, ciudad_norm: str) -> Tuple[Optional[float], Optional[float]]:
-    consultas = _construir_consultas(nombre_norm, direccion_norm or None, ciudad_norm)
-
-    for consulta in consultas:
-        try:
-            _respetar_rate_limit(1.0)
-            location = geolocator.geocode(consulta, addressdetails=True, country_codes="co")
-            if location:
-                return (round(location.latitude, 8), round(location.longitude, 8))
-        except Exception as e:
-            logger.warning("Error geocodificando '%s': %s", consulta, e)
-
-    return None, None
+geolocator = Nominatim(user_agent="pat_turismo_app")
 
 
 def obtener_coordenadas_exactas(
@@ -82,4 +33,71 @@ def obtener_coordenadas_exactas(
     if coords == (None, None):
         _buscar_en_cache.cache_clear()
 
-    return coords
+        return None, None
+
+import re
+import unicodedata
+
+def _norm(t: str) -> str:
+    sin = unicodedata.normalize("NFD", t or "").encode("ascii", "ignore").decode()
+    return sin.lower().strip()
+
+def _variantes(texto: str):
+    t = " ".join((texto or "").split())
+    variantes = [t]
+    # "Carrera 7 # 28-66" -> "Carrera 7 28-66" (Nominatim se confunde con el #)
+    sin_signo = re.sub(r"\s*(#|n[o°º]\.?|nro\.?)\s*(?=\d)", " ", t, flags=re.I)
+    sin_signo = " ".join(sin_signo.split())
+    if sin_signo.lower() != t.lower():
+        variantes.append(sin_signo)
+    return variantes
+
+def _a_lugar(loc) -> dict:
+    address = loc.raw.get("address", {})
+    ciudades = [address.get(k) for k in
+                ("city", "town", "village", "municipality", "county", "state_district", "state")
+                if address.get(k)]
+    barrio = address.get("neighbourhood") or address.get("suburb") or address.get("quarter")
+    return {
+        "latitud": round(loc.latitude, 8),
+        "longitud": round(loc.longitude, 8),
+        "nombre_mapa": loc.address,
+        "ciudad": ciudades[0] if ciudades else None,
+        "ciudades": ciudades,
+        "barrio": barrio,
+    }
+
+def buscar_lugar(texto: str) -> Optional[dict]:
+    """Devuelve el mejor resultado + 'alternativas' (hasta 4 más)."""
+    resultados, vistos = [], set()
+    for consulta in _variantes(texto):
+        try:
+            encontrados = geolocator.geocode(
+                consulta, addressdetails=True, country_codes="co",
+                language="es", timeout=10, exactly_one=False, limit=5
+            )
+        except Exception as e:
+            print(f"Error buscando lugar: {e}")
+            encontrados = None
+        for loc in encontrados or []:
+            clave = (round(loc.latitude, 4), round(loc.longitude, 4))
+            if clave not in vistos:
+                vistos.add(clave)
+                resultados.append(loc)
+        if resultados:
+            break
+        time.sleep(1)
+
+    if not resultados:
+        return None
+
+    # Si el texto trae ciudad ("..., Bogotá"), esos resultados van primero
+    partes = [p.strip() for p in texto.split(",") if p.strip()]
+    if len(partes) > 1:
+        pista = _norm(partes[-1])
+        resultados.sort(key=lambda l: 0 if pista in _norm(l.address) else 1)
+
+    lugares = [_a_lugar(l) for l in resultados]
+    principal = lugares[0]
+    principal["alternativas"] = lugares[1:]
+    return principal

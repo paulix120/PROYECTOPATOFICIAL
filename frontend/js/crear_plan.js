@@ -8,6 +8,10 @@ let mapaCrearPlanInstance = null;
 let controlRuta = null; 
 let serviciosFiltradosMemoria = [];
 let servicioSeleccionadoModal = null;
+let mapaPreview = null;
+let marcadoresPreview = [];
+let origenResuelto = null;
+let destinoResuelto = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
     if (!token) { window.location.href = "../login.html"; return; }
@@ -21,6 +25,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         await cargarPlanExistente(planId);
     }
 
+    const hoy = fechaHoyLocal();
+    const inputInicio = document.getElementById("fechaInicio");
+    const inputFin = document.getElementById("fechaFin");
+    inputInicio.min = hoy;
+    inputFin.min = hoy;
+    inputInicio.addEventListener("change", () => {
+        inputFin.min = inputInicio.value || hoy;
+    });
+
     document.getElementById("crearPlanForm").addEventListener("submit", crearPlanBase);
     document.getElementById("formAgregarItem").addEventListener("submit", procesarFormularioItem);
 });
@@ -28,9 +41,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function cargarUbicaciones() {
     const res = await fetch(`${API_URL}/ubicaciones/`);
     ubicacionesList = res.ok ? await res.json() : [];
-    const opts = `<option value="">-- Selecciona --</option>` + ubicacionesList.map(u => `<option value="${u.id_ubi}">${u.direccion} (${u.ciudad || u.barrio || ''})</option>`).join("");
-    document.getElementById("origenPlan").innerHTML = opts;
-    document.getElementById("destinoPlan").innerHTML = opts;
+}
+
+function fechaHoyLocal() {
+    const d = new Date();
+    const mes = String(d.getMonth() + 1).padStart(2, "0");
+    const dia = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${mes}-${dia}`;
 }
 
 async function cargarCatalogoCompleto() {
@@ -55,24 +72,123 @@ async function cargarPlanExistente(id_plan) {
 
 async function crearPlanBase(e) {
     e.preventDefault();
-    const payload = {
-        nombre_plan: document.getElementById("nombrePlan").value,
-        fecha_inicio: document.getElementById("fechaInicio").value,
-        fecha_fin: document.getElementById("fechaFin").value,
-        id_ubicacion_origen: parseInt(document.getElementById("origenPlan").value),
-        id_ubicacion_destino: parseInt(document.getElementById("destinoPlan").value)
-    };
-    
+
+    const fInicio = document.getElementById("fechaInicio").value;
+    const fFin = document.getElementById("fechaFin").value;
+    if (fInicio < fechaHoyLocal()) {
+        alert("La fecha de inicio no puede ser una fecha que ya pasó. Elige una fecha de hoy en adelante.");
+        return;
+    }
+    if (fFin < fInicio) {
+        alert("La fecha de fin no puede ser anterior a la fecha de inicio.");
+        return;
+    }
+
+    const tOrigen = document.getElementById("origenTexto").value.trim();
+    const tDestino = document.getElementById("destinoTexto").value.trim();
+
+    // Si el usuario cambió el texto (o no buscó), se busca de nuevo
+    if (!origenResuelto || origenResuelto.texto !== tOrigen || !destinoResuelto || destinoResuelto.texto !== tDestino) {
+        const ok = await buscarEnMapa();
+        if (!ok) return;
+    }
+
     try {
+        const idOrigen = await guardarUbicacion(origenResuelto.lugar);
+        const idDestino = await guardarUbicacion(destinoResuelto.lugar);
+
+        const payload = {
+            nombre_plan: document.getElementById("nombrePlan").value,
+            fecha_inicio: document.getElementById("fechaInicio").value,
+            fecha_fin: document.getElementById("fechaFin").value,
+            id_ubicacion_origen: idOrigen,
+            id_ubicacion_destino: idDestino
+        };
+
         const res = await fetch(`${API_URL}/planes-viaje/`, {
             method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify(payload)
         });
         const data = await res.json();
-        
+
         if (res.ok) {
+            await cargarUbicaciones(); // para que el mapa encuentre las ubicaciones nuevas
             await cargarPlanExistente(data.id_plan_viaje);
         } else alert(data.detail);
-    } catch (error) { console.error(error); alert("Error de conexión"); }
+    } catch (error) { console.error(error); alert(error.message || "Error de conexión"); }
+}
+
+async function geocodificar(texto) {
+    const res = await fetch(`${API_URL}/ubicaciones/buscar?texto=${encodeURIComponent(texto)}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "No se pudo buscar el lugar.");
+    return data;
+}
+
+async function guardarUbicacion(lugar) {
+    const res = await fetch(`${API_URL}/ubicaciones/desde-mapa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+            direccion: lugar.direccion,
+            barrio: lugar.barrio,
+            latitud: lugar.latitud,
+            longitud: lugar.longitud,
+            descripcion: lugar.descripcion,
+            id_cdad: lugar.id_cdad
+        })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "No se pudo guardar la ubicación.");
+    return data.id_ubi;
+}
+
+async function buscarEnMapa() {
+    const tOrigen = document.getElementById("origenTexto").value.trim();
+    const tDestino = document.getElementById("destinoTexto").value.trim();
+    const info = document.getElementById("infoBusqueda");
+
+    if (!tOrigen || !tDestino) {
+        alert("Escribe el origen y el destino.");
+        return false;
+    }
+
+    info.textContent = "⏳ Buscando ubicaciones...";
+    try {
+        const lugarOrigen = await geocodificar(tOrigen);
+        const lugarDestino = await geocodificar(tDestino);
+
+        origenResuelto = { texto: tOrigen, lugar: lugarOrigen };
+        destinoResuelto = { texto: tDestino, lugar: lugarDestino };
+
+        dibujarPreview(lugarOrigen, lugarDestino);
+        actualizarInfoBusqueda();
+        mostrarAlternativas();
+        return true;
+    } catch (error) {
+        info.textContent = "";
+        alert(error.message);
+        return false;
+    }
+}
+
+function dibujarPreview(origen, destino) {
+    if (!mapaPreview) {
+        mapaPreview = L.map("mapaPreview").setView([4.6534, -74.1162], 6);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(mapaPreview);
+    }
+    marcadoresPreview.forEach(m => mapaPreview.removeLayer(m));
+    marcadoresPreview = [];
+
+    const mOri = L.marker([origen.latitud, origen.longitud]).addTo(mapaPreview).bindPopup("Origen: " + origen.direccion);
+    const mDes = L.marker([destino.latitud, destino.longitud]).addTo(mapaPreview).bindPopup("Destino: " + destino.direccion);
+    marcadoresPreview.push(mOri, mDes);
+
+    mapaPreview.fitBounds(
+        L.latLngBounds([[origen.latitud, origen.longitud], [destino.latitud, destino.longitud]]),
+        { padding: [30, 30] }
+    );
 }
 
 function renderizarResumen() {
@@ -89,6 +205,35 @@ function cambiarDePlan() {
     document.getElementById("seccionItems").style.display = "none";
     window.history.replaceState(null, '', 'crear_plan.html'); // Limpia la URL
     document.getElementById("crearPlanForm").reset();
+        if (mapaPreview) setTimeout(() => mapaPreview.invalidateSize(), 100);
+}
+
+const RADIO_CERCA_KM = 25;
+let refTransporte = {}; // id_servicio -> {dDest, dOri}
+
+function distKm(lat1, lon1, lat2, lon2) {
+    if ([lat1, lon1, lat2, lon2].some(v => v === null || v === undefined || isNaN(v))) return null;
+    const R = 6371, toR = d => d * Math.PI / 180;
+    const a = Math.sin(toR(lat2 - lat1) / 2) ** 2 +
+              Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(toR(lon2 - lon1) / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+const distUbis = (a, b) => (a && b) ? distKm(parseFloat(a.latitud), parseFloat(a.longitud), parseFloat(b.latitud), parseFloat(b.longitud)) : null;
+
+// Devuelve {cerca, km}
+function evaluarCercania(s) {
+    const ubiDestino = ubicacionesList.find(u => u.id_ubi == planActual.id_ubicacion_destino);
+    const ubiOrigen = ubicacionesList.find(u => u.id_ubi == planActual.id_ubicacion_origen);
+
+    if (tipoServicioActual === "TRANSPORTE") {
+        const r = refTransporte[s.id_servicio];
+        if (!r || r.dDest === null) return { cerca: false, km: null };
+        // Debe llegar cerca del destino y salir razonablemente cerca del origen (aeropuertos/terminales)
+        const origenOk = r.dOri === null || r.dOri <= 80;
+        return { cerca: r.dDest <= 30 && origenOk, km: r.dDest };
+    }
+    const km = distUbis(ubiDestino, s.ubicacion);
+    return { cerca: km !== null && km <= RADIO_CERCA_KM, km };
 }
 
 async function cargarCategoria() {
@@ -97,58 +242,57 @@ async function cargarCategoria() {
     const gCarro = document.getElementById("grupoCarroPropio");
 
     if (!tipoServicioActual) { gTarjetas.style.display = "none"; gCarro.style.display = "none"; return; }
-
     if (tipoServicioActual === "TRANSPORTE_PROPIO") {
         gTarjetas.style.display = "none"; gCarro.style.display = "block";
         actualizarMapaEnVivo();
         return;
     }
-
     gTarjetas.style.display = "block"; gCarro.style.display = "none";
-    
+
     const mapTipo = { "HOSPEDAJE": 1, "GASTRONOMIA": 2, "DESTINO_TURISTICO": 3, "TRANSPORTE": 4, "GUIA": 5 };
     serviciosFiltradosMemoria = todosLosServicios.filter(s => s.id_tp_serv === mapTipo[tipoServicioActual]);
 
-    // Filtrar vuelos y buses hacia la ciudad de destino
     if (tipoServicioActual === "TRANSPORTE") {
+        refTransporte = {};
         try {
             const res = await fetch(`${API_URL}/servicios/transporte/`);
             const transportes = await res.json();
-            const destinoPlan = ubicacionesList.find(u => u.id_ubi == planActual.id_ubicacion_destino);
-            
-            if (destinoPlan) {
-                serviciosFiltradosMemoria = serviciosFiltradosMemoria.filter(s => {
-                    const tr = transportes.find(t => t.servicio_base.id_servicio === s.id_servicio);
-                    if (!tr || !tr.detalle.id_destino) return false;
-                    const destTrans = ubicacionesList.find(u => u.id_ubi == tr.detalle.id_destino);
-                    return destTrans && destTrans.id_cdad === destinoPlan.id_cdad; 
-                });
-            }
-        } catch (e) { console.error("Error filtrando transporte", e); }
+            const ubiDestino = ubicacionesList.find(u => u.id_ubi == planActual.id_ubicacion_destino);
+            const ubiOrigen = ubicacionesList.find(u => u.id_ubi == planActual.id_ubicacion_origen);
+            transportes.forEach(t => {
+                const d = t.detalle;
+                const uDes = ubicacionesList.find(u => u.id_ubi == d.id_destino);
+                const uOri = ubicacionesList.find(u => u.id_ubi == d.id_origen);
+                refTransporte[t.servicio_base.id_servicio] = {
+                    dDest: distUbis(ubiDestino, uDes),
+                    dOri: distUbis(ubiOrigen, uOri)
+                };
+            });
+        } catch (e) { console.error("Error evaluando transportes", e); }
     }
-    
     renderizarTarjetas(serviciosFiltradosMemoria);
 }
 
 function renderizarTarjetas(servicios) {
     const cCerca = document.getElementById("cardsCerca"); const cLejos = document.getElementById("cardsLejos");
     cCerca.innerHTML = ""; cLejos.innerHTML = "";
-    const ubiDestino = ubicacionesList.find(u => u.id_ubi == planActual.id_ubicacion_destino);
 
-    servicios.forEach(s => {
-        const img = s.imagen_principal ? (s.imagen_principal.startsWith('http') ? s.imagen_principal : API_URL+s.imagen_principal) : 'https://via.placeholder.com/300x200?text=Servicio';
+    const evaluados = servicios.map(s => ({ s, ...evaluarCercania(s) }))
+        .sort((a, b) => (a.km ?? 1e9) - (b.km ?? 1e9));
+
+    evaluados.forEach(({ s, cerca, km }) => {
+        const img = s.imagen_principal ? (s.imagen_principal.startsWith('http') ? s.imagen_principal : API_URL + s.imagen_principal) : 'https://via.placeholder.com/300x200?text=Servicio';
+        const distTxt = km !== null ? ` · a ${km < 1 ? Math.round(km * 1000) + " m" : km.toFixed(1) + " km"}` : "";
         const html = `
             <div class="tarjeta-servicio" onclick="abrirModal(${s.id_servicio})">
                 <img src="${img}">
                 <h4 style="color:#0f172a; margin-bottom:4px; font-size:15px;">${s.nombre}</h4>
-                <p style="color:#64748b; font-size:12px;">📍 ${s.ubicacion ? s.ubicacion.direccion : 'Ubicación no registrada'}</p>
+                <p style="color:#64748b; font-size:12px;">📍 ${s.ubicacion ? s.ubicacion.direccion : 'Ubicación no registrada'}${distTxt}</p>
             </div>`;
-        
-        if (ubiDestino && s.ubicacion && s.ubicacion.id_cdad === ubiDestino.id_cdad) cCerca.innerHTML += html;
-        else cLejos.innerHTML += html;
+        (cerca ? cCerca : cLejos).innerHTML += html;
     });
 
-    if (cCerca.innerHTML === "") cCerca.innerHTML = "<p style='color:#64748b; font-size: 13px;'>No hay servicios registrados en tu ciudad de destino.</p>";
+    if (cCerca.innerHTML === "") cCerca.innerHTML = "<p style='color:#64748b; font-size: 13px;'>No hay servicios cerca de tu destino.</p>";
     if (cLejos.innerHTML === "") cLejos.innerHTML = "<p style='color:#64748b; font-size: 13px;'>No se encontraron más servicios.</p>";
 }
 
@@ -278,3 +422,31 @@ async function enviarItem(payload) {
 
 function finalizarPlan() { window.location.href = "ver_planes.html"; }
 function cerrarSesion() { localStorage.clear(); window.location.href = "../login.html"; }
+
+function actualizarInfoBusqueda() {
+    document.getElementById("infoBusqueda").innerHTML =
+        `📍 <b>Origen:</b> ${origenResuelto.lugar.descripcion}<br>🏁 <b>Destino:</b> ${destinoResuelto.lugar.descripcion}`;
+}
+
+function mostrarAlternativas() {
+    let html = "";
+    [["origen", origenResuelto], ["destino", destinoResuelto]].forEach(([tipo, r]) => {
+        const alts = (r && r.lugar.alternativas) || [];
+        if (!alts.length) return;
+        html += `<div style="margin-top:8px"><b>¿No es ese ${tipo}? Otras coincidencias:</b>` +
+            alts.map((a, i) => `<div><a href="#" onclick="elegirAlternativa('${tipo}',${i});return false;">${a.descripcion}</a></div>`).join("") + `</div>`;
+    });
+    document.getElementById("alternativasBusqueda").innerHTML = html;
+}
+
+function elegirAlternativa(tipo, i) {
+    const r = tipo === "origen" ? origenResuelto : destinoResuelto;
+    const alts = r.lugar.alternativas;
+    const nueva = alts[i];
+    const resto = [r.lugar, ...alts.filter((_, j) => j !== i)].map(x => ({ ...x, alternativas: [] }));
+    nueva.alternativas = resto;
+    r.lugar = nueva;
+    dibujarPreview(origenResuelto.lugar, destinoResuelto.lugar);
+    actualizarInfoBusqueda();
+    mostrarAlternativas();
+}

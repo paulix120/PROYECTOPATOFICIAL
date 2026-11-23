@@ -13,4 +13,8 @@ def listar_mis_pagos(
     db: Session = Depends(get_session),
     usuario: User = Depends(get_current_user)
 ):
+<<<<<<< HEAD
     return PagoProveedorService.obtener_mis_pagos(db, usuario)
+=======
+    return PagoProveedorService.obtener_mis_pagos(db, usuario)
+>>>>>>> origin/parteMiguel

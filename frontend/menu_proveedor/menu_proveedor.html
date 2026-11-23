@@ -6,6 +6,8 @@
   <title>Panel del Proveedor - PAT</title>
   <link rel="stylesheet" href="../css/styles_menu_proveedor.css" />
   <link rel="icon" type="image/png" href="../img/Designer_icon.png" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
   <div class="dashboard-layout">
@@ -331,15 +333,21 @@
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="srvGama">Gama</label>
-            <select id="srvGama" required></select>
-          </div>
-          <div class="form-group">
-            <label for="srvUbicacion">Ubicación</label>
-            <select id="srvUbicacion" required></select>
-          </div>
+        <div class="form-group">
+          <label for="srvGama">Gama</label>
+          <select id="srvGama" required></select>
+        </div>
+
+        <div class="form-group">
+          <label for="srvUbicacionTexto">Ubicación (dirección exacta)</label>
+          <input type="text" id="srvUbicacionTexto" required autocomplete="off"
+                 placeholder="Ej: Calle 26 # 69-76, Bogotá" />
+          <button type="button" class="btn-outline btn-sm" style="margin-top: 8px;"
+                  onclick="verUbicacionEnMapa()">🔍 Ver en el mapa</button>
+          <div id="infoUbicacionServicio" style="font-size: 12px; color: #475569; margin-top: 6px;"></div>
+          <div id="alternativasServicio" style="font-size:12px;margin-top:6px;"></div>
+          <div id="mapaServicio"
+               style="display: none; height: 220px; margin-top: 8px; border-radius: 8px; border: 1px solid #cbd5e1; isolation: isolate;"></div>
         </div>
 
         <div class="form-group">

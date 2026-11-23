@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PAT | Panel de Administración</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/styles_menu_admin.css">
+</head>
+<body>
+    <div class="admin-shell">
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <span class="brand-mark">PAT</span>
+                <span class="brand-sub">Consola Admin</span>
+            </div>
+
+            <nav class="sidebar-nav" aria-label="Navegación principal">
+                <button class="nav-item active" data-section="resumen" onclick="cambiarSeccion('resumen')">
+                    Resumen general
+                </button>
+                <button class="nav-item" data-section="usuarios" onclick="cambiarSeccion('usuarios')">
+                    Usuarios y roles
+                </button>
+                <button class="nav-item" data-section="proveedores" onclick="cambiarSeccion('proveedores')">
+                    Solicitudes y proveedores
+                </button>
+                <button class="nav-item" data-section="normativa" onclick="cambiarSeccion('normativa')">
+                    Políticas y condiciones
+                </button>
+                <button class="nav-item" data-section="rutas" onclick="cambiarSeccion('rutas')">
+                    Ubicaciones y trayectos
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <a class="btn btn-outline btn-full" href="../menu_usuario/menu_usuario.html">
+                    Ver catálogo público
+                </a>
+                <button class="btn btn-danger-outline btn-full" onclick="cerrarSesion()">
+                    Cerrar sesión
+                </button>
+            </div>
+        </aside>
+
+        <!-- CONTENIDO PRINCIPAL -->
+        <div class="main-area">
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button class="btn btn-outline mobile-menu-btn" onclick="toggleSidebar()" aria-label="Abrir menú">
+                        Menú
+                    </button>
+                    <div class="breadcrumb">
+                        <span>PAT Administración</span>
+                        <span class="sep">/</span>
+                        <strong id="topbarTitulo">Resumen general</strong>
+                    </div>
+                </div>
+
+                <div class="topbar-right">
+                    <div class="admin-profile">
+                        <div class="avatar" id="adminAvatar">AD</div>
+                        <div class="admin-meta">
+                            <span class="admin-name" id="adminNombre">Administrador</span>
+                            <span class="admin-email" id="adminEmail">admin@pat.com.co</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="recargarTodo()">
+                        Actualizar datos
+                    </button>
+                </div>
+            </header>
+
+            <div id="toastBanner" class="toast-banner" role="status" aria-live="polite"></div>
+
+            <main class="viewport">
+                <!-- ==========================================
+                     1. RESUMEN GENERAL
+                     ========================================== -->
+                <section id="sec-resumen" class="section-view active">
+                    <div class="section-header">
+                        <div>
+                            <h1>Panel de Control PAT</h1>
+                            <p class="muted">Supervisa usuarios, solicitudes de proveedores, normativa y red geográfica en tiempo real.</p>
+                        </div>
+                    </div>
+
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <span class="kpi-label">Usuarios registrados</span>
+                            <strong class="kpi-value tabular-nums" id="kpiUsuarios">--</strong>
+                            <span class="kpi-foot" id="kpiUsuariosActivos">Cargando...</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Solicitudes en revisión</span>
+                            <strong class="kpi-value tabular-nums" id="kpiSolicitudes">--</strong>
+                            <span class="kpi-foot">Pendientes de aprobación</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Documentos pendientes</span>
+                            <strong class="kpi-value tabular-nums" id="kpiDocumentos">--</strong>
+                            <span class="kpi-foot">RUT / RNT / Cédula</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Proveedores activos</span>
+                            <strong class="kpi-value tabular-nums" id="kpiProveedores">--</strong>
+                            <span class="kpi-foot" id="kpiRutasTotal">Cargando...</span>
+                        </div>
+                    </div>
+
+                    <div class="two-col-grid">
+                        <div class="panel">
+                            <div class="panel-header">
+                                <h2>Solicitudes recientes</h2>
+                                <button class="btn btn-text" onclick="cambiarSeccion('proveedores')">Gestionar todas</button>
+                            </div>
+                            <div id="resumenSolicitudes" class="table-wrap"></div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header">
+                                <h2>Últimos cambios de rol</h2>
+                                <button class="btn btn-text" onclick="cambiarSeccion('usuarios')">Ver auditoría</button>
+                            </div>
+                            <div id="resumenAuditoria" class="table-wrap"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==========================================
+                     2. USUARIOS, ROLES Y AUDITORÍA (HU-27A)
+                     ========================================== -->
+                <section id="sec-usuarios" class="section-view">
+                    <div class="section-header">
+                        <div>
+                            <h1>Usuarios, Roles y Auditoría</h1>
+                            <p class="muted">Administra cuentas, asigna roles con trazabilidad y protege el acceso administrativo.</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="abrirModalCrearUsuario()">
+                            + Nuevo usuario
+                        </button>
+                    </div>
+
+                    <div class="panel">
+                        <div class="toolbar">
+                            <input type="text" id="filtroUsuarioBuscar" class="input" placeholder="Buscar por nombre, apellido o correo..." oninput="cargarUsuarios()">
+                            <select id="filtroUsuarioRol" class="select" onchange="cargarUsuarios()">
+                                <option value="">Todos los roles</option>
+                                <option value="1">1 · Viajero</option>
+                                <option value="2">2 · Administrador</option>
+                                <option value="3">3 · Proveedor</option>
+                                <option value="4">4 · Guía</option>
+                            </select>
+                            <select id="filtroUsuarioEstado" class="select" onchange="cargarUsuarios()">
+                                <option value="">Todos los estados</option>
+                                <option value="true">Activos</option>
+                                <option value="false">Inactivos</option>
+                            </select>
+                        </div>
+                        <div id="tablaUsuarios" class="table-wrap"></div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h2>Historial de auditoría de roles</h2>
+                            <button class="btn btn-outline btn-sm" onclick="cargarAuditoriaRoles()">Refrescar auditoría</button>
+                        </div>
+                        <div id="tablaAuditoriaRoles" class="table-wrap"></div>
+                    </div>
+                </section>
+
+                <!-- ==========================================
+                     3. SOLICITUDES, DOCUMENTOS Y PROVEEDORES
+                     ========================================== -->
+                <section id="sec-proveedores" class="section-view">
+                    <div class="section-header">
+                        <div>
+                            <h1>Solicitudes, Documentos y Proveedores</h1>
+                            <p class="muted">Verifica documentación legal, aprueba o rechaza postulaciones y controla el estado de proveedores.</p>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h2>Solicitudes de proveedor</h2>
+                            <button class="btn btn-outline btn-sm" onclick="cargarSolicitudes()">Refrescar</button>
+                        </div>
+                        <div id="tablaSolicitudes" class="table-wrap"></div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h2>Revisión de documentos</h2>
+                            <div class="toolbar-inline">
+                                <select id="filtroDocEstado" class="select" onchange="cargarDocumentos()">
+                                    <option value="">Todos los estados</option>
+                                    <option value="PENDIENTE">Pendientes</option>
+                                    <option value="APROBADO">Aprobados</option>
+                                    <option value="RECHAZADO">Rechazados</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="tablaDocumentos" class="table-wrap"></div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h2>Proveedores registrados</h2>
+                            <div class="toolbar-inline">
+                                <select id="filtroProvEstado" class="select" onchange="cargarProveedores()">
+                                    <option value="">Todos los estados</option>
+                                    <option value="ACTIVO">Activos</option>
+                                    <option value="INACTIVO">Inactivos</option>
+                                    <option value="SUSPENDIDO">Suspendidos</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="tablaProveedores" class="table-wrap"></div>
+                    </div>
+                </section>
+
+                <!-- ==========================================
+                     4. POLÍTICAS Y CONDICIONES
+                     ========================================== -->
+                <section id="sec-normativa" class="section-view">
+                    <div class="section-header">
+                        <div>
+                            <h1>Políticas y Condiciones</h1>
+                            <p class="muted">Define las reglas de cancelación, reserva, pago y uso que rigen los servicios de la plataforma.</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-outline" onclick="abrirModalPolitica()">+ Nueva política</button>
+                            <button class="btn btn-primary" onclick="abrirModalCondicion()">+ Nueva condición</button>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h2>Políticas globales</h2>
+                        </div>
+                        <div id="tablaPoliticas" class="table-wrap"></div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h2>Condiciones asociadas</h2>
+                        </div>
+                        <div id="tablaCondiciones" class="table-wrap"></div>
+                    </div>
+                </section>
+
+                <!-- ==========================================
+                     5. UBICACIONES Y TRAYECTOS
+                     ========================================== -->
+                <section id="sec-rutas" class="section-view">
+                    <div class="section-header">
+                        <div>
+                            <h1>Ubicaciones y Trayectos</h1>
+                            <p class="muted">Gestiona puntos geográficos y calcula rutas entre origen y destino.</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-outline" onclick="abrirModalUbicacion()">+ Nueva ubicación</button>
+                            <button class="btn btn-primary" onclick="abrirModalTrayecto()">+ Calcular trayecto</button>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h2>Ubicaciones registradas</h2>
+                        </div>
+                        <div id="tablaUbicaciones" class="table-wrap"></div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h2>Trayectos calculados</h2>
+                        </div>
+                        <div id="tablaTrayectos" class="table-wrap"></div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL REUTILIZABLE
+         ========================================== -->
+    <div id="modalOverlay" class="modal-overlay" aria-hidden="true">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+            <div class="modal-header">
+                <h3 id="modalTitulo">Acción</h3>
+                <button class="btn btn-text" onclick="cerrarModal()" aria-label="Cerrar">Cerrar</button>
+            </div>
+            <form id="modalForm" onsubmit="enviarFormularioModal(event)">
+                <div id="modalBody" class="modal-body"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="cerrarModal()">Cancelar</button>
+                    <button type="submit" id="modalSubmitBtn" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="../js/menu_admin/menu_admin.js"></script>
+</body>
+</html>

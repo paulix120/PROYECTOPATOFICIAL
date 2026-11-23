@@ -106,6 +106,9 @@ function renderizarPlanes(planes) {
                 ${itemsHTML !== "" ? itemsHTML : "<p style='color:#666;'>No hay servicios agregados todavía.</p>"}
 
                 <div style="display: flex; justify-content: flex-end; gap: 15px; margin-top: 25px;">
+                    ${plan.estado === 'DESEO' && items.length > 0
+                        ? `<button onclick="window.location.href='pago.html?id_plan=${plan.id_plan_viaje}'" style="cursor:pointer; padding: 12px 20px; background: #28a745; color: white; border: none; border-radius: 6px; font-weight: bold;">💳 Pagar plan</button>`
+                        : (plan.estado === 'DESEO' ? '' : `<span style="padding: 12px 20px; background: #e6f4ea; color: #1e7e34; border-radius: 6px; font-weight: bold;">✅ ${plan.estado === 'RESERVADO' ? 'Reservado y pagado' : plan.estado}</span>`)}
                     <button onclick="window.print()" style="cursor:pointer; padding: 12px 20px; border: 1px solid #ccc; background: #fff; border-radius: 6px; font-weight: bold;">🖨️ Imprimir Itinerario</button>
                     <button onclick="window.location.href='crear_plan.html?planId=${plan.id_plan_viaje}'" style="cursor:pointer; padding: 12px 20px; background: #007bff; color: white; border: none; border-radius: 6px; font-weight: bold;">+ Agregar más servicios</button>
                 </div>
@@ -203,34 +206,74 @@ async function obtenerUbicacionesParaMapa() {
 async function abrirModalOrigenDestino(idPlan, oriActual, desActual) {
     idPlanEditandoUbicacion = idPlan;
     const ubicaciones = await obtenerUbicacionesParaMapa();
-    const selOri = document.getElementById("selOrigenPlan");
-    const selDes = document.getElementById("selDestinoPlan");
-    
-    const opciones = ubicaciones.map(u => `<option value="${u.id_ubi}">${u.direccion} (${u.barrio || u.ciudad || ''})</option>`).join("");
-    
-    selOri.innerHTML = `<option value="">-- Selecciona --</option>` + opciones;
-    selDes.innerHTML = `<option value="">-- Selecciona --</option>` + opciones;
-    
-    if (oriActual) selOri.value = oriActual;
-    if (desActual) selDes.value = desActual;
-    
+    const ori = ubicaciones.find(u => u.id_ubi === oriActual);
+    const des = ubicaciones.find(u => u.id_ubi === desActual);
+
+    document.getElementById("txtOrigenPlan").value = ori ? ori.direccion : "";
+    document.getElementById("txtDestinoPlan").value = des ? des.direccion : "";
+    document.getElementById("infoOrigenDestino").textContent = "";
     document.getElementById("modalOrigenDestino").style.display = "flex";
 }
 
+async function buscarLugarApi(texto) {
+    const res = await fetch(`${API_URL}/ubicaciones/buscar?texto=${encodeURIComponent(texto)}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "No se pudo buscar el lugar.");
+    return data;
+}
+
+async function guardarUbicacionApi(lugar) {
+    const res = await fetch(`${API_URL}/ubicaciones/desde-mapa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+            direccion: lugar.direccion,
+            barrio: lugar.barrio,
+            latitud: lugar.latitud,
+            longitud: lugar.longitud,
+            descripcion: lugar.descripcion,
+            id_cdad: lugar.id_cdad
+        })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "No se pudo guardar la ubicación.");
+    return data.id_ubi;
+}
+
 async function guardarOrigenDestino() {
-    const idOri = document.getElementById("selOrigenPlan").value;
-    const idDes = document.getElementById("selDestinoPlan").value;
-    if (!idOri || !idDes) { alert("Selecciona origen y destino."); return; }
+    const tOri = document.getElementById("txtOrigenPlan").value.trim();
+    const tDes = document.getElementById("txtDestinoPlan").value.trim();
+    const info = document.getElementById("infoOrigenDestino");
+    const btn = document.getElementById("btnGuardarRuta");
+
+    if (!tOri || !tDes) { alert("Escribe el origen y el destino."); return; }
+
+    btn.disabled = true;
+    info.textContent = "⏳ Buscando ubicaciones...";
     try {
+        const lugarOri = await buscarLugarApi(tOri);
+        const lugarDes = await buscarLugarApi(tDes);
+        const idOri = await guardarUbicacionApi(lugarOri);
+        const idDes = await guardarUbicacionApi(lugarDes);
+
         const res = await fetch(`${API_URL}/planes-viaje/${idPlanEditandoUbicacion}`, {
             method: "PUT", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-            body: JSON.stringify({ id_ubicacion_origen: parseInt(idOri), id_ubicacion_destino: parseInt(idDes) })
+            body: JSON.stringify({ id_ubicacion_origen: idOri, id_ubicacion_destino: idDes })
         });
         if (res.ok) {
             document.getElementById("modalOrigenDestino").style.display = "none";
-            cargarMisPlanes(); // Recargamos para actualizar el mapa
+            ubicacionesCacheMapa = null; // para que el mapa encuentre las ubicaciones nuevas
+            cargarMisPlanes();
         } else alert("Error al guardar origen y destino.");
-    } catch(e) { console.error(e); }
+    } catch (e) {
+        console.error(e);
+        info.textContent = "";
+        alert(e.message || "Error de conexión");
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 // =====================================

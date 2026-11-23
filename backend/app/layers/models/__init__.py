@@ -50,3 +50,5 @@ from .servicio_transporte import ServicioTransporte, TransporteCreate, Transport
 from .servicio_guia import ServicioGuia, GuiaCreate, GuiaUpdate
 from .resena import Resena, ResenaCreate, ResenaUpdate, ResenaResponse, EstadoResena, ResenaResponder
 from .pago_proveedor import Pago, PagoProveedor
+
+from .auditoria_rol import AuditoriaRol

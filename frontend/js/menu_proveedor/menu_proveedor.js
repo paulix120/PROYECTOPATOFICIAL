@@ -31,6 +31,10 @@ let notificaciones = [];
 let catTurismo = [];
 let catGamas = [];
 let catUbicaciones = [];
+// Ubicación libre del servicio (mapa)
+let mapaServicio = null;
+let marcadorServicio = null;
+let ubicacionServicio = null; // { texto, lugar, id_ubi }
 
 // ======================================================
 // HELPER CENTRALIZADO DE FETCH CON JWT
@@ -110,6 +114,8 @@ function configurarEventosUI() {
 
 async function cargarDashboardCompleto() {
   try {
+    const perfilPrevio = await apiFetch("/proveedores/mi-perfil");
+    if (perfilPrevio.estado !== "ACTIVO") { mostrarCuentaBloqueada(perfilPrevio); return; }
     const [
       perfilRes,
       serviciosRes,
@@ -149,6 +155,23 @@ async function cargarDashboardCompleto() {
     console.error("Error cargando dashboard:", error);
     mostrarToast(error.message);
   }
+}
+
+function mostrarCuentaBloqueada(perfil) {
+  const textos = {
+    INACTIVO: "Tu cuenta de proveedor está inactiva.",
+    SUSPENDIDO: "Tu cuenta de proveedor está suspendida."
+  };
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:grid;place-items:center;background:#f1f5f9;font-family:system-ui,sans-serif;padding:20px;">
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:36px;max-width:440px;text-align:center;box-shadow:0 4px 14px rgba(15,23,42,.08);">
+        <div style="font-size:48px;">🚫</div>
+        <h2 style="margin:10px 0 8px;color:#0f172a;">Cuenta ${perfil.estado.toLowerCase()}</h2>
+        <p style="color:#64748b;margin-bottom:22px;">${textos[perfil.estado] || "Tu cuenta no está habilitada."}
+          Tus servicios no se muestran a los viajeros. Comunícate con el administrador de PAT para reactivarla.</p>
+        <button onclick="cerrarSesion()" style="padding:10px 22px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;font-weight:600;cursor:pointer;">Cerrar sesión</button>
+      </div>
+    </div>`;
 }
 
 function renderizarTodo() {
@@ -526,9 +549,6 @@ function poblarSelectsFormulario() {
   document.getElementById("srvGama").innerHTML = catGamas
     .map((g) => `<option value="${g.id_gama}">${g.nombre}</option>`)
     .join("");
-  document.getElementById("srvUbicacion").innerHTML = catUbicaciones
-    .map((u) => `<option value="${u.id_ubi}">${u.direccion} (${u.barrio || ""})</option>`)
-    .join("");
 }
 
 function actualizarCamposCategoria(detalle = null) {
@@ -559,16 +579,28 @@ function actualizarCamposCategoria(detalle = null) {
           <div class="form-group"><label>Capacidad</label><input type="number" id="detCapacidad" value="${detalle?.capacidad || 10}" /></div>
         </div>`;
     } else if (cat === 4) {
-      contUnico.innerHTML = `
-        <div class="form-row">
-          <div class="form-group"><label>Tipo de vehículo</label><input type="text" id="detVehiculo" value="${detalle?.tipo_vehiculo || ""}" required /></div>
-          <div class="form-group"><label>Tarifa base (COP)</label><input type="number" id="detTarifa" value="${detalle?.tarifa_base || 0}" required /></div>
-        </div>
-        <div class="form-row">
-          <div class="form-group"><label>Capacidad pasajeros</label><input type="number" id="detCapacidad" value="${detalle?.capacidad_pasajeros || 4}" required /></div>
-          <div class="form-group"><label>Valor por Km (COP)</label><input type="number" id="detVlrKm" value="${detalle?.vlr_km || 2000}" required /></div>
-        </div>`;
-    } else if (cat === 5) {
+  const uOri = detalle?.id_origen ? catUbicaciones.find(u => u.id_ubi === detalle.id_origen) : null;
+  const uDes = detalle?.id_destino ? catUbicaciones.find(u => u.id_ubi === detalle.id_destino) : null;
+  contUnico.innerHTML = `
+    <div class="form-row">
+      <div class="form-group"><label>Tipo de vehículo</label><input type="text" id="detVehiculo" value="${detalle?.tipo_vehiculo || ""}" required /></div>
+      <div class="form-group"><label>Tarifa base (COP)</label><input type="number" id="detTarifa" value="${detalle?.tarifa_base || 0}" required /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Capacidad pasajeros</label><input type="number" id="detCapacidad" value="${detalle?.capacidad_pasajeros || 4}" required /></div>
+      <div class="form-group"><label>Valor por Km (COP)</label><input type="number" id="detVlrKm" value="${detalle?.vlr_km || 2000}" required /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Origen de la ruta</label>
+        <input type="text" id="detOrigen" required placeholder="Ej: Aeropuerto José María Córdova, Rionegro"
+          value="${uOri ? uOri.direccion : ""}" data-id="${uOri ? uOri.id_ubi : ""}" data-texto="${uOri ? uOri.direccion : ""}" /></div>
+      <div class="form-group"><label>Destino de la ruta</label>
+        <input type="text" id="detDestino" required placeholder="Ej: Aeropuerto El Dorado, Bogotá"
+          value="${uDes ? uDes.direccion : ""}" data-id="${uDes ? uDes.id_ubi : ""}" data-texto="${uDes ? uDes.direccion : ""}" /></div>
+    </div>
+    <div class="form-group"><label>Fecha y hora de salida (opcional)</label>
+      <input type="datetime-local" id="detSalida" value="${detalle?.fecha_salida ? detalle.fecha_salida.slice(0, 16) : ""}" /></div>`;
+} else if (cat === 5) {
       contUnico.innerHTML = `
         <div class="form-row">
           <div class="form-group"><label>Nombre del tour</label><input type="text" id="detNombre" value="${detalle?.nombre_tour || ""}" required /></div>
@@ -582,11 +614,30 @@ function actualizarCamposCategoria(detalle = null) {
   }
 }
 
+async function resolverRutaTransporte(idInput) {
+  const el = document.getElementById(idInput);
+  const t = el.value.trim();
+  if (!t) return null;
+  if (el.dataset.id && el.dataset.texto === t) return Number(el.dataset.id); // no cambió
+  const lugar = await apiFetch(`/ubicaciones/buscar?texto=${encodeURIComponent(t)}`);
+  const ubi = await apiFetch("/ubicaciones/desde-mapa", {
+    method: "POST",
+    body: JSON.stringify({ direccion: lugar.direccion, barrio: lugar.barrio, latitud: lugar.latitud,
+      longitud: lugar.longitud, descripcion: lugar.descripcion, id_cdad: lugar.id_cdad })
+  });
+  return ubi.id_ubi;
+}
+
 function abrirModalServicio(idServicio = null) {
   document.getElementById("formServicio").reset();
   document.getElementById("srvId").value = idServicio || "";
   document.getElementById("galeriaModal").innerHTML = "";
   document.getElementById("listaSubitemsModal").innerHTML = "";
+
+  // Reiniciar el bloque de ubicación
+  ubicacionServicio = null;
+  document.getElementById("infoUbicacionServicio").textContent = "";
+  document.getElementById("mapaServicio").style.display = "none";
 
   const selectCat = document.getElementById("srvCategoria");
   if (idServicio) {
@@ -597,9 +648,12 @@ function abrirModalServicio(idServicio = null) {
     selectCat.disabled = true;
     document.getElementById("srvTurismo").value = s.id_tp_turi;
     document.getElementById("srvGama").value = s.id_gama;
-    document.getElementById("srvUbicacion").value = s.id_ubi;
     document.getElementById("srvNombre").value = s.nombre;
     document.getElementById("srvDescripcion").value = s.descripcion;
+
+    const dirActual = s.ubicacion ? s.ubicacion.direccion : "";
+    document.getElementById("srvUbicacionTexto").value = dirActual;
+    ubicacionServicio = { texto: dirActual, lugar: null, id_ubi: s.id_ubi };
 
     actualizarCamposCategoria(s.detalle);
     renderizarSubitemsModal(s);
@@ -611,6 +665,15 @@ function abrirModalServicio(idServicio = null) {
   }
 
   document.getElementById("modalServicio").classList.remove("hidden");
+
+  // El mapa se dibuja con el modal ya visible para que Leaflet calcule bien el tamaño
+  if (idServicio) {
+    const u = servicios.find((x) => x.id_servicio === idServicio)?.ubicacion;
+    if (u) {
+      document.getElementById("infoUbicacionServicio").textContent = "📍 Ubicación actual del servicio.";
+      dibujarMapaServicio(Number(u.latitud), Number(u.longitud), u.direccion);
+    }
+  }
 }
 
 function renderizarSubitemsModal(s) {
@@ -650,20 +713,139 @@ function renderizarGaleriaModal(s) {
     .join("");
 }
 
+// ======================================================
+// UBICACIÓN LIBRE DEL SERVICIO (dirección + mapa)
+// ======================================================
+async function buscarUbicacionServicio(texto) {
+  const lugar = await apiFetch(`/ubicaciones/buscar?texto=${encodeURIComponent(texto)}`);
+  alternativasServicio = lugar.alternativas || [];
+  ubicacionServicio = { texto, lugar, id_ubi: null };
+  pintarAlternativasServicio();
+  return lugar;
+}
+
+let alternativasServicio = [];
+
+function dibujarMapaServicio(lat, lng, etiqueta) {
+  if (typeof L === "undefined") return;
+  document.getElementById("mapaServicio").style.display = "block";
+
+  if (!mapaServicio) {
+    mapaServicio = L.map("mapaServicio").setView([lat, lng], 16);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(mapaServicio);
+  }
+  if (marcadorServicio) mapaServicio.removeLayer(marcadorServicio);
+
+  marcadorServicio = L.marker([lat, lng], { draggable: true }).addTo(mapaServicio)
+    .bindPopup(etiqueta + "<br><small>Arrastra el pin para ajustar</small>").openPopup();
+  marcadorServicio.on("dragend", () => {
+    const p = marcadorServicio.getLatLng();
+    const texto = document.getElementById("srvUbicacionTexto").value.trim();
+    const base = (ubicacionServicio && ubicacionServicio.lugar) ||
+                 { direccion: texto, barrio: null, id_cdad: null };
+    ubicacionServicio = {
+      texto,
+      lugar: { ...base, direccion: texto, latitud: +p.lat.toFixed(8), longitud: +p.lng.toFixed(8),
+               descripcion: "Ubicación ajustada manualmente en el mapa" },
+      id_ubi: null
+    };
+    document.getElementById("infoUbicacionServicio").textContent = "📍 Ubicación ajustada manualmente.";
+  });
+  mapaServicio.setView([lat, lng], 16);
+  setTimeout(() => mapaServicio.invalidateSize(), 100);
+}
+
+function pintarAlternativasServicio() {
+  const cont = document.getElementById("alternativasServicio");
+  if (!cont) return;
+  cont.innerHTML = alternativasServicio.length
+    ? "<b>¿No es ese lugar? Otras coincidencias:</b>" +
+      alternativasServicio.map((a, i) =>
+        `<div><a href="#" onclick="elegirAlternativaServicio(${i});return false;">${a.descripcion}</a></div>`).join("")
+    : "";
+}
+
+function elegirAlternativaServicio(i) {
+  const a = alternativasServicio[i];
+  const texto = document.getElementById("srvUbicacionTexto").value.trim();
+  alternativasServicio = [ubicacionServicio.lugar, ...alternativasServicio.filter((_, j) => j !== i)]
+    .filter(Boolean);
+  ubicacionServicio = { texto, lugar: { ...a, direccion: texto }, id_ubi: null };
+  document.getElementById("infoUbicacionServicio").textContent = `📍 Seleccionado: ${a.descripcion}`;
+  dibujarMapaServicio(a.latitud, a.longitud, texto);
+  pintarAlternativasServicio();
+}
+
+async function verUbicacionEnMapa() {
+  const texto = document.getElementById("srvUbicacionTexto").value.trim();
+  const info = document.getElementById("infoUbicacionServicio");
+
+  if (texto.length < 3) {
+    alert("Escribe la dirección del servicio.");
+    return;
+  }
+
+  info.textContent = "⏳ Buscando ubicación...";
+  try {
+    const lugar = await buscarUbicacionServicio(texto);
+    info.textContent = `📍 Encontrado: ${lugar.descripcion}`;
+    dibujarMapaServicio(lugar.latitud, lugar.longitud, texto);
+  } catch (error) {
+    info.textContent = "";
+    alert(error.message);
+  }
+}
+
+// Devuelve el id_ubi que se guardará en el servicio
+async function resolverIdUbicacion() {
+  const texto = document.getElementById("srvUbicacionTexto").value.trim();
+  if (!texto) throw new Error("Escribe la dirección del servicio.");
+
+  // Servicio existente cuya dirección no cambió: se reutiliza su ubicación
+  if (ubicacionServicio && ubicacionServicio.texto === texto && ubicacionServicio.id_ubi) {
+    return ubicacionServicio.id_ubi;
+  }
+
+  // Dirección nueva o modificada: se busca en el mapa si aún no se ha buscado
+  if (!ubicacionServicio || ubicacionServicio.texto !== texto || !ubicacionServicio.lugar) {
+    const lugar = await buscarUbicacionServicio(texto);
+    document.getElementById("infoUbicacionServicio").textContent = `📍 Encontrado: ${lugar.descripcion}`;
+    dibujarMapaServicio(lugar.latitud, lugar.longitud, texto);
+  }
+
+  const lugar = ubicacionServicio.lugar;
+  const ubi = await apiFetch("/ubicaciones/desde-mapa", {
+    method: "POST",
+    body: JSON.stringify({
+      direccion: lugar.direccion,
+      barrio: lugar.barrio,
+      latitud: lugar.latitud,
+      longitud: lugar.longitud,
+      descripcion: lugar.descripcion,
+      id_cdad: lugar.id_cdad
+    })
+  });
+
+  ubicacionServicio.id_ubi = ubi.id_ubi;
+  return ubi.id_ubi;
+}
+
 async function guardarServicioAPI(e) {
   e.preventDefault();
   const idExistente = document.getElementById("srvId").value;
   const cat = Number(document.getElementById("srvCategoria").value);
 
-  const basePayload = {
-    nombre: document.getElementById("srvNombre").value.trim(),
-    descripcion: document.getElementById("srvDescripcion").value.trim(),
-    id_tp_turi: Number(document.getElementById("srvTurismo").value),
-    id_gama: Number(document.getElementById("srvGama").value),
-    id_ubi: Number(document.getElementById("srvUbicacion").value)
-  };
-
   try {
+    const idUbi = await resolverIdUbicacion();
+
+    const basePayload = {
+      nombre: document.getElementById("srvNombre").value.trim(),
+      descripcion: document.getElementById("srvDescripcion").value.trim(),
+      id_tp_turi: Number(document.getElementById("srvTurismo").value),
+      id_gama: Number(document.getElementById("srvGama").value),
+      id_ubi: idUbi
+    };
+
     let idServicioFinal = idExistente ? Number(idExistente) : null;
 
     if (cat === 1) {
@@ -687,12 +869,19 @@ async function guardarServicioAPI(e) {
       const res = await apiFetch(url, { method: idExistente ? "PUT" : "POST", body: JSON.stringify(payload) });
       if (!idServicioFinal) idServicioFinal = res.id_servicio;
     } else if (cat === 4) {
+      const idOrigen = await resolverRutaTransporte("detOrigen");
+      const idDestino = await resolverRutaTransporte("detDestino");
+      const salida = document.getElementById("detSalida").value;
       const payload = {
         ...basePayload,
         tipo_vehiculo: document.getElementById("detVehiculo").value.trim(),
         tarifa_base: Number(document.getElementById("detTarifa").value),
         capacidad_pasajeros: Number(document.getElementById("detCapacidad").value),
-        vlr_km: Number(document.getElementById("detVlrKm").value)
+        vlr_km: Number(document.getElementById("detVlrKm").value),
+        es_ruta_programada: !!(idOrigen && idDestino),
+        id_origen: idOrigen,
+        id_destino: idDestino,
+        fecha_salida: salida || null
       };
       const url = idExistente ? `/servicios/transporte/${idExistente}` : "/servicios/transporte/";
       const res = await apiFetch(url, { method: idExistente ? "PUT" : "POST", body: JSON.stringify(payload) });

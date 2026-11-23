@@ -1,6 +1,8 @@
 from typing import List
 from sqlmodel import Session, select
 from app.layers.models.servicio import Servicio, ServicioHospedaje
+from sqlalchemy import or_
+from app.layers.models.proveedor import Proveedor
 
 class ServicioRepository:
     
@@ -56,4 +58,14 @@ class ServicioRepository:
     def obtener_servicios_por_proveedor(db: Session, id_prov: int) -> List[Servicio]:
         return db.exec(
             select(Servicio).where(Servicio.id_prov == id_prov, Servicio.activo == True)
+        ).all()
+
+    @staticmethod
+    def obtener_todos_los_servicios(db: Session) -> List[Servicio]:
+        activos = select(Proveedor.id_prov).where(Proveedor.estado == "ACTIVO")
+        return db.exec(
+            select(Servicio).where(
+                Servicio.activo == True,
+                or_(Servicio.id_prov == None, Servicio.id_prov.in_(activos))
+            )
         ).all()

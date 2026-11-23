@@ -2,6 +2,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 from sqlmodel import Field, SQLModel
+<<<<<<< HEAD
+=======
+from app.layers.models.metodo_pago import MetodoPago  # noqa: F401 (registra la tabla metodo_pago)
+>>>>>>> origin/parteMiguel
 
 
 class Pago(SQLModel, table=True):
@@ -26,4 +30,8 @@ class PagoProveedor(SQLModel, table=True):
     comision_plataforma: Decimal = Field(default=Decimal("0.00"), max_digits=10, decimal_places=2)
     monto_neto_proveedor: Decimal = Field(max_digits=10, decimal_places=2)
     estado_transferencia: str = Field(default="PENDIENTE")
+<<<<<<< HEAD
     fecha_transferencia: Optional[datetime] = None
+=======
+    fecha_transferencia: Optional[datetime] = None
+>>>>>>> origin/parteMiguel

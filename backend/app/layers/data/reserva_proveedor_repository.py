@@ -27,4 +27,8 @@ class ReservaProveedorRepository:
             .where(DetPlanViaje.id_plan_viaje == id_plan_viaje)
             .where(Servicio.id_prov == id_prov)
         ).first()
+<<<<<<< HEAD
         return match is not None
+=======
+        return match is not None
+>>>>>>> origin/parteMiguel

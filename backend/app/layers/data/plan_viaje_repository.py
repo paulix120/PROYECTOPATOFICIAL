@@ -72,11 +72,10 @@ class PlanViajeRepository:
         return db.get(DetPlanViaje, id_detalle)
 
     @staticmethod
-    def usuario_ya_tiene_transporte(db: Session, id_usu: int) -> bool:
+    def plan_ya_tiene_transporte(db: Session, id_plan: int) -> bool:
         resultado = db.exec(
             select(DetPlanViaje)
-            .join(PlanViaje, PlanViaje.id_plan_viaje == DetPlanViaje.id_plan_viaje)
-            .where(PlanViaje.id_usu == id_usu)
+            .where(DetPlanViaje.id_plan_viaje == id_plan)
             .where(DetPlanViaje.tipo_item.in_(["TRANSPORTE", "TRANSPORTE_PROPIO"]))
         ).first()
         return resultado is not None

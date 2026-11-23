@@ -70,4 +70,8 @@ class ReservaProveedorService:
         db.add(plan)
         db.commit()
         db.refresh(plan)
+<<<<<<< HEAD
         return {"mensaje": f"Reserva actualizada a estado {nuevo_estado}.", "estado": plan.estado}
+=======
+        return {"mensaje": f"Reserva actualizada a estado {nuevo_estado}.", "estado": plan.estado}
+>>>>>>> origin/parteMiguel

@@ -49,11 +49,16 @@
             <input type="text" id="nombrePlan" required placeholder="Ej: Vacaciones en Cartagena"><br><br>
             
             <label>Origen Principal:</label><br>
-            <select id="origenPlan" required></select><br><br>
-            
+            <input type="text" id="origenTexto" required placeholder="Ej: Calle 26 # 69-76, Bogotá o Terminal de Medellín"><br><br>
+
             <label>Destino Principal:</label><br>
-            <select id="destinoPlan" required></select><br><br>
-            
+            <input type="text" id="destinoTexto" required placeholder="Ej: Parque Tayrona, Santa Marta"><br><br>
+
+            <button type="button" onclick="buscarEnMapa()" style="background:#fff; color:#2563eb; border:1px solid #2563eb; padding:8px 14px; border-radius:6px; font-weight:bold; cursor:pointer;">🔍 Ver en el mapa</button>
+            <div id="infoBusqueda" style="font-size:13px; color:#475569; margin-top:8px; max-width:520px;"></div>
+            <div id="alternativasBusqueda" style="font-size:13px;max-width:520px;"></div>
+            <div id="mapaPreview" style="height:280px; max-width:520px; margin:10px 0 20px; border-radius:8px; border:1px solid #cbd5e1; z-index:1;"></div>
+                        
             <div style="display: flex; gap: 20px; max-width: 420px;">
                 <div style="flex: 1;">
                     <label>Fecha inicio:</label><br>

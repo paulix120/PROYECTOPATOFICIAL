@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
-
+from sqlmodel import Session, select
 from app.layers.data.solicitud_proveedor_repository import SolicitudProveedorRepository
 from app.layers.data.proveedor_repository import ProveedorRepository
 from app.layers.data.user_repository import UserRepository
@@ -86,55 +86,46 @@ class SolicitudProveedorService:
     @staticmethod
     def revisar_solicitud(db: Session, id_sp: int, data: SolicitudRevision):
         solicitud = SolicitudProveedorRepository.obtener_por_id(db, id_sp)
-
         if not solicitud:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Solicitud no encontrada.")
-        if solicitud.estado != "EN_REVISION":
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Esta solicitud ya fue procesada.")
+            raise HTTPException(status_code=404, detail="Solicitud no encontrada.")
         if data.estado not in ["APROBADA", "RECHAZADA"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El estado debe ser APROBADA o RECHAZADA.",
-            )
+            raise HTTPException(status_code=400, detail="El estado debe ser APROBADA o RECHAZADA.")
+        if solicitud.estado == data.estado:
+            raise HTTPException(status_code=400, detail=f"La solicitud ya está {data.estado}.")
 
         try:
             solicitud.estado = data.estado
             solicitud.observaciones = data.observaciones
             SolicitudProveedorRepository.actualizar(db, solicitud, commit=False)
 
+            usuario = UserRepository.obtener_por_id(db, solicitud.id_usu)
+            if not usuario:
+                raise HTTPException(status_code=404, detail="Usuario asociado a la solicitud no encontrado.")
+            proveedor = ProveedorRepository.obtener_por_usuario(db, solicitud.id_usu)
+
             if data.estado == "APROBADA":
-                proveedor_existente = ProveedorRepository.obtener_por_usuario(db, solicitud.id_usu)
-                if proveedor_existente:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Este usuario ya está registrado como proveedor.",
+                if proveedor:
+                    proveedor.estado = "ACTIVO"
+                    db.add(proveedor)
+                    db.flush()
+                else:
+                    proveedor = ProveedorRepository.crear(
+                        db, Proveedor(id_usu=solicitud.id_usu, id_sp=solicitud.id_sp, estado="ACTIVO"), commit=False
                     )
-
-                nuevo_proveedor = Proveedor(
-                    id_usu=solicitud.id_usu,
-                    id_sp=solicitud.id_sp,
-                    estado="ACTIVO",
-                )
-                proveedor_guardado = ProveedorRepository.crear(db, nuevo_proveedor, commit=False)
-
-                servicios_pedidos = SolicitudProveedorRepository.obtener_servicios_de_solicitud(
-                    db, solicitud.id_sp
-                )
-                for serv in servicios_pedidos:
-                    ProveedorRepository.agregar_servicio_autorizado(
-                        db,
-                        ProveedorTpServicio(id_prov=proveedor_guardado.id_prov, id_tp_serv=serv.id_tp_serv),
-                        commit=False,
-                    )
-
-                usuario = UserRepository.obtener_por_id(db, solicitud.id_usu)
-                if not usuario:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="Usuario asociado a la solicitud no encontrado.",
-                    )
-                usuario.id_rol = 3  # 3 = Proveedor
-                UserRepository.actualizar(db, usuario, commit=False)
+                ya = {p.id_tp_serv for p in db.exec(
+                    select(ProveedorTpServicio).where(ProveedorTpServicio.id_prov == proveedor.id_prov)).all()}
+                for serv in SolicitudProveedorRepository.obtener_servicios_de_solicitud(db, solicitud.id_sp):
+                    if serv.id_tp_serv not in ya:
+                        ProveedorRepository.agregar_servicio_autorizado(
+                            db, ProveedorTpServicio(id_prov=proveedor.id_prov, id_tp_serv=serv.id_tp_serv), commit=False)
+                usuario.id_rol = 3
+            else:  # RECHAZADA (también revoca una aprobación anterior)
+                if proveedor:
+                    proveedor.estado = "INACTIVO"
+                    db.add(proveedor)
+                if usuario.id_rol == 3:
+                    usuario.id_rol = 1
+            UserRepository.actualizar(db, usuario, commit=False)
 
             db.commit()
         except HTTPException:
@@ -142,13 +133,10 @@ class SolicitudProveedorService:
             raise
         except Exception:
             db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error al procesar la revisión de la solicitud.",
-            )
+            raise HTTPException(status_code=500, detail="Error al procesar la revisión de la solicitud.")
 
         return {"mensaje": f"Solicitud {data.estado} exitosamente."}
-
+    
     @staticmethod
     def listar_todas(db: Session):
         return SolicitudProveedorRepository.obtener_todas(db)

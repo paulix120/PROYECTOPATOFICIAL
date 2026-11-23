@@ -46,3 +46,8 @@ class ResenaResponse(SQLModel):
     estado: str
     respuesta_proveedor: Optional[str] = None
     fecha_respuesta: Optional[datetime] = None
+
+class ResenaServicioCreate(SQLModel):
+    id_servicio: int
+    clf_general: int
+    comentario: Optional[str] = None

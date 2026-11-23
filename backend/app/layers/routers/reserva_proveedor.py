@@ -26,4 +26,8 @@ def actualizar_estado_reserva(
     db: Session = Depends(get_session),
     usuario: User = Depends(get_current_user)
 ):
+<<<<<<< HEAD
     return ReservaProveedorService.actualizar_estado_reserva(db, id_plan_viaje, data, usuario)
+=======
+    return ReservaProveedorService.actualizar_estado_reserva(db, id_plan_viaje, data, usuario)
+>>>>>>> origin/parteMiguel
