@@ -1,6 +1,6 @@
-backend/.venv/
+
 .venv/
 __pycache__/
 *.pyc
 .env
-repomix_output.xml
+repomix-output.xml
